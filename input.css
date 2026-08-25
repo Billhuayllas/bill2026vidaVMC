@@ -1,0 +1,10 @@
+@import "./styles.css";
+@import "./programa.css";
+@import "./informes.css";
+@import "./gestionar_participantes.css";
+@import "./filtros_avanzados.css";
+@import "./asignar_anc_y_min.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

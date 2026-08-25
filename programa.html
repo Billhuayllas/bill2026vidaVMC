@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Programa VMT</title>
+    <script>
+        function showLoadError(message) {
+            console.error(message);
+            const statusMsg = document.getElementById('status-message');
+            if (statusMsg) {
+                statusMsg.textContent = message;
+                statusMsg.classList.remove('hidden');
+                statusMsg.style.backgroundColor = '#fee2e2';
+                statusMsg.style.color = '#991b1b';
+            }
+        }
+
+        window.addEventListener('error', function(e) {
+            if (e.message.includes('supabase')) {
+                showLoadError('Error al cargar la biblioteca de base de datos');
+            } else if (e.message.includes('html2canvas')) {
+                showLoadError('Error al cargar la biblioteca de conversión HTML a imagen');
+            } else if (e.message.includes('html2pdf')) {
+                showLoadError('Error al cargar la biblioteca de conversión a PDF');
+            }
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='output.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=1.1">
+</head>
+<body class="bg-gray-100">
+    <header class="bg-white shadow-md">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <h1 class="text-2xl font-bold text-gray-800">Programa VMT</h1>
+                    </div>
+                </div>
+                <div class="block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="/" class="text-gray-500 hover:bg-gray-200 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">Inicio</a>
+                        <a href="/programa" class="bg-gray-900 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page">Programa</a>
+                        <a href="/gestionar_participantes" class="text-gray-500 hover:bg-gray-200 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">Gestionar Participantes</a>
+                        <a href="/filtros_avanzados" class="text-gray-500 hover:bg-gray-200 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">Filtros Avanzados</a>
+                        <a href="/informes" class="text-gray-500 hover:bg-gray-200 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">Informes</a>
+                        <a href="/planificador" class="text-gray-500 hover:bg-gray-200 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">Planificador</a>
+                        <a href="/asignar_anc_y_min" class="text-gray-500 hover:bg-gray-200 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">asignar anc. y min.</a>
+                    </div>
+                </div>
+                <div class="-mr-2 flex md:hidden">
+                    <button type="button" id="mobile-menu-button" class="bg-gray-800 inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white" aria-controls="mobile-menu" aria-expanded="false">
+                        <span class="sr-only">Open main menu</span>
+                        <svg class="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg class="hidden h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="hidden lg:hidden" id="mobile-menu">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="/" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Inicio</a>
+                <a href="/programa" class="bg-gray-900 text-white block px-3 py-2 rounded-md text-base font-medium" aria-current="page">Programa</a>
+                <a href="/gestionar_participantes" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Gestionar Participantes</a>
+                <a href="/filtros_avanzados" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Filtros Avanzados</a>
+                <a href="/informes" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Informes</a>
+                <a href="/planificador" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Planificador</a>
+                <a href="/asignar_anc_y_min" class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">asignar anc. y min.</a>
+            </div>
+        </div>
+    </header>
+    <main class="container mx-auto px-4 py-8">
+        <div id="status-message" class="mb-4 p-4 rounded-md hidden"></div>
+        <div id="program-container" class="bg-white shadow-md rounded-lg p-6"></div>
+    </main>
+    <script>
+        // Verificar que todas las dependencias estén cargadas antes de cargar los scripts de la aplicación
+        window.addEventListener('load', function() {
+            if (typeof supabase === 'undefined') {
+                showLoadError('Error: La biblioteca de base de datos no se ha cargado correctamente');
+                return;
+            }
+            
+            // Cargar los scripts de la aplicación
+            const programaScript = document.createElement('script');
+            programaScript.src = "{{ url_for('static', filename='programa.js') }}?v=1.2";
+            document.body.appendChild(programaScript);
+
+            const mainScript = document.createElement('script');
+            mainScript.src = "{{ url_for('static', filename='main.js') }}?v=1.2";
+            document.body.appendChild(mainScript);
+        });
+    </script>
+</body>
+</html>

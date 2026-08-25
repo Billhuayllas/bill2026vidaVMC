@@ -1,0 +1,8 @@
+{
+  "name": "Copy of VMT Program Manager",
+  "description": "A dashboard interface for managing the VMT program, featuring a navigation bar with multiple tabs for different sections.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

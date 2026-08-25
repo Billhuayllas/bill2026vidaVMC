@@ -1,0 +1,88 @@
+components/Planificador.tsx:39:                <div key={`${prog.week_id}-smm`} className="planificador-mobile-card">
+components/Planificador.tsx:45:                                <div className="planificador-mobile-card__group" key={`smm-mob-${i}`}>
+components/Planificador.tsx:51:                                            <div className="planificador-mobile-card__room" key={room}>
+components/Planificador.tsx:95:                 <div key={`${prog.week_id}-lectura`} className="planificador-mobile-card">
+components/Planificador.tsx:99:                             <div className="planificador-mobile-card__row" key={room}>
+components/Planificador.tsx:118:                     <div key={`${prog.week_id}-libro`} className="planificador-mobile-card">
+components/Planificador.tsx:214:                        {activeRoomKeys.map(key => <th key={key}>{roomMap[key]}</th>)}
+components/Planificador.tsx:219:                        <React.Fragment key={`${prog.week_id}-${idx}`}>
+components/Planificador.tsx:224:                                    <tr key={`smm-desk-${i}`}>
+components/Planificador.tsx:232:                                                    <td key={room}>
+components/Planificador.tsx:244:                                                <td key={room}>
+components/Planificador.tsx:277:                        {activeRoomKeys.map(key => <th key={key}>{roomMap[key]}</th>)}
+components/Planificador.tsx:282:                        <tr key={`${prog.week_id}-${idx}`}>
+components/Planificador.tsx:285:                                <td key={room}>
+components/Planificador.tsx:316:                                    <tr key={`${prog.week_id}-${idx}`}>
+components/Planificador.tsx:327:                                <tr key={`${prog.week_id}-${idx}`}>
+components/Planificador.tsx:365:                            return <option key={`plan-month-${month}-${idx}`} value={month}>{date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</option>
+components/congregation/PublisherCards.tsx:79:                        <option key={p.id} value={p.nombre}>{p.nombre}</option>
+components/congregation/PublisherCards.tsx:185:                                    <tr key={m.key} style={{ height: '35px' }}>
+components/congregation/PrintTemplate.tsx:75:                <div key={colIndex} style={{ flex: 1 }}>
+components/congregation/PrintTemplate.tsx:98:                                    <tr key={m.id} style={{ backgroundColor: displayBg }}>
+components/congregation/ControlPanel.tsx:140:                                {groups.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+components/congregation/ControlPanel.tsx:213:                                <option key={m.value} value={m.value}>{m.label}</option>
+components/congregation/AddMemberInput.tsx:43:                                key={p.id} 
+components/congregation/CongregationSummary.tsx:124:                            <tr key={g.groupId} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: idx % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.01)' }}>
+components/congregation/DirectoryTemplate.tsx:29:                <div key={colIndex} style={{ flex: 1 }}>
+components/congregation/DirectoryTemplate.tsx:45:                                    <tr key={m.id} style={{ backgroundColor: displayBg }}>
+components/congregation/GlobalPublishersList.tsx:105:                            <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: updating === row.publisher.nombre ? '#fef3c7' : 'transparent' }}>
+components/congregation/GlobalPublishersList.tsx:130:                                                <option key={g.id} value={g.id}>{g.nombre}</option>
+components/congregation/SummaryModal.tsx:81:                                <tr key={role} style={{ backgroundColor: stats.bg }}>
+components/congregation/GlobalDirectoryTemplate.tsx:32:            <tr key={member.id} style={{ backgroundColor: displayBg }}>
+components/congregation/GlobalDirectoryTemplate.tsx:93:                    <div key={idx} style={{ marginBottom: compact ? '10px' : '15px', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+components/programa/DesktopProgramView.tsx:43:                    {availableRooms.map(r => <col key={r.id} style={{width: `${72/availableRooms.length}%`}} />)}
+components/programa/DesktopProgramView.tsx:49:                            <th key={r.id}>{r.label}</th>
+components/programa/DesktopProgramView.tsx:58:                            return <td key={r.id}><RenderField path={path} listKey={list} /></td>
+components/programa/DesktopProgramView.tsx:63:                            <td key={r.id}>
+components/programa/DesktopProgramView.tsx:71:                        {availableRooms.map(r => <td key={r.id}>{r.id === 'main' ? <RenderField path="tesoros.p1.main" listKey="discursantes" /> : null}</td>)}
+components/programa/DesktopProgramView.tsx:74:                        {availableRooms.map(r => <td key={r.id}>{r.id === 'main' ? <RenderField path="tesoros.p2.main" listKey="discursantes" /> : null}</td>)}
+components/programa/DesktopProgramView.tsx:77:                        {availableRooms.map(r => <td key={r.id}><RenderField path={`tesoros.p3.${r.id}`} listKey="lectores" /></td>)}
+components/programa/DesktopProgramView.tsx:84:                            <tr key={`maestros-desk-${i}`}>
+components/programa/DesktopProgramView.tsx:91:                                    if(isDiscurso) return <td key={room}><RenderField path={path} listKey="maestros_discurso" /></td>
+components/programa/DesktopProgramView.tsx:95:                                        return <td key={room}><div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}><ReadOnlyAssignment value={enc} label="Enc" /><ReadOnlyAssignment value={ayu} label="Ayu" /></div></td>;
+components/programa/DesktopProgramView.tsx:98:                                        <td key={room}>
+components/programa/DesktopProgramView.tsx:112:                            return (<tr key={pathPrefix}><td>{part.titulo}</td>
+components/programa/DesktopProgramView.tsx:113:                                {availableRooms.map(r => <td key={r.id}>{r.id === 'main' ? <RenderField path={`${pathPrefix}.discursante`} listKey="discursantes" /> : null}</td>)}
+components/programa/DesktopProgramView.tsx:118:                                <tr key={pathPrefix}><td>{part.titulo}</td>
+components/programa/DesktopProgramView.tsx:120:                                        <td key={r.id}>
+components/programa/DesktopProgramView.tsx:137:                        return <tr key={pathPrefix}><td>{part.titulo}</td><td colSpan={availableRooms.length}></td></tr>;
+components/programa/DesktopProgramView.tsx:140:                        {availableRooms.map(r => <td key={r.id}>{r.id === 'main' ? <RenderField path="oracion.final" listKey="oradores" /> : null}</td>)}
+components/programa/MobileSectionMaestros.tsx:73:                    <MobilePartContainer key={i} title={part.title} iconClass="fas fa-comments">
+components/programa/MobileSectionVida.tsx:23:                <div key={i}>
+components/CopiasSeguridad.tsx:247:                            <li key={backup.id} style={{ 
+components/Programa.tsx:58:                    {programs.map((p, idx) => <option key={`prog-sel-${p.week_id}-${idx}`} value={p.week_id}>{p.data?.titulo || p.week_id}</option>)}
+components/Programa.tsx:140:                                    {programs.map((p, idx) => <option key={`print-opt-start-${p.week_id}-${idx}`} value={p.week_id}>{p.data?.titulo || p.week_id}</option>)}
+components/Programa.tsx:149:                                    {programs.filter(p => p.week_id >= printStartWeek).map((p, idx) => <option key={`print-opt-end-${p.week_id}-${idx}`} value={p.week_id}>{p.data?.titulo || p.week_id}</option>)}
+components/AcceptAssignments.tsx:439:                            <div key={assign.id} className={`assignment-card-public`}>
+components/GestionarParticipantes.tsx:604:                        key={m.type}
+components/GestionarParticipantes.tsx:709:                                <div key={p.id} className={`gp-card ${isSelected ? 'selected' : ''}`}>
+components/ConfiguracionAcceso.tsx:330:                            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '1rem', fontWeight: '600' }}>
+components/ConfiguracionAcceso.tsx:403:                                {groups.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+components/ConfiguracionAcceso.tsx:420:                                        key={tab}
+components/ConfiguracionAcceso.tsx:466:                    <div key={config.id} style={{ backgroundColor: 'var(--card-bg-color)', borderRadius: '16px', padding: '20px', border: editingId === config.id ? '2px solid var(--primary-color)' : '1px solid var(--border-color)', boxShadow: 'var(--shadow-md)', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+components/ConfiguracionAcceso.tsx:512:                                    <span key={t.name} style={{ fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', backgroundColor: t.access === 'edit' ? '#dcfce7' : '#f1f5f9', color: t.access === 'edit' ? '#059669' : '#64748b', border: `1px solid ${t.access === 'edit' ? '#10b981' : '#e2e8f0'}`, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+components/Informes.tsx:534:                            {weekOptions.map(w => <option key={w} value={w}>{fullDataCache[w]?.titulo || w}</option>)}
+components/Informes.tsx:541:                            {weekOptions.filter(w => w >= startWeek).map(w => <option key={w} value={w}>{fullDataCache[w]?.titulo || w}</option>)}
+components/Informes.tsx:548:                            {personOptions.map(p => <option key={p} value={p}>{p}</option>)}
+components/Informes.tsx:555:                           {assignmentOptions.map(a => <option key={a} value={a}>{a}</option>)}
+components/Informes.tsx:578:                         <div key={slipId} data-slip-id={slipId} className="report-slip">
+components/AsignarAncMin.tsx:83:                                return <option key={`anc-month-${key}-${idx}`} value={key}>{date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</option>
+components/AsignarAncMin.tsx:141:                                        <tr key={`${prog.week_id}-${idx}`}>
+components/AsignarAncMin.tsx:188:                                <div key={`${prog.week_id}-${idx}`} className="assignment-card" style={{
+components/AsignarAncMin.tsx:226:                                                    <div key={path} style={{ 
+components/AsignarAncMin.tsx:260:                                                    <div key={path || idx} style={{ 
+components/CustomSelect.tsx:254:                                key={isPlaceholder ? 'placeholder' : opt.nombre}
+components/HistoryModal.tsx:70:                                <div key={person.name} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+components/HistoryModal.tsx:88:                                                        <tr key={idx} className="hover:bg-gray-50">
+components/Header.tsx:118:                    <li key={group} style={{position: 'relative'}}>
+components/Header.tsx:133:                <li key={group} style={isMobile ? { borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', marginBottom: '10px' } : { position: 'relative' }}>
+components/Header.tsx:176:                                    key={item}
+components/FiltrosAvanzados.tsx:219:                    <div key={idx} style={{ 
+components/FiltrosAvanzados.tsx:308:                        <div key={person} className="participant-card" style={{ backgroundColor: 'var(--card-bg-color)', borderRadius: '16px', border: '1px solid var(--border-color)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+components/Inicio.tsx:141:                                        <div key={r.id} style={{ 
+components/Inicio.tsx:184:                                        <div key={r.id} style={{ 
+components/HistorialEventos.tsx:161:                        <div key={event.id} className={`history-event-card type-${event.event_type.split('_')[1]}`}>
+components/Recordatorios.tsx:165:                                <option key={g} value={g}>{g}</option>
+components/Recordatorios.tsx:196:                        <div key={r.id} style={{ 
+components/GrupoCongregacion.tsx:280:                                            key={item.id}
+components/GrupoCongregacion.tsx:454:                                    <MemberItem key={m.id} member={m} report={reports[m.publicador_nombre]} onClick={() => setEditingMember(m)} />

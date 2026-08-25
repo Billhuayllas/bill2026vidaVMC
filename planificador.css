@@ -1,0 +1,268 @@
+/* Overrides for Planificador tabs to ensure consistent look with top nav */
+.planificador-page .tabs-navigation {
+  display: flex;
+  gap: 0.25rem; /* space-x-1 */
+  align-items: center;
+  margin-top: 20px;
+}
+
+.planificador-page .tabs-navigation .tab-link {
+  /* refined visual: slightly larger pill with subtle border and interactive states */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem; /* comfortable touch target */
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #213547; /* deep slate */
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(33,53,71,0.06);
+  cursor: pointer;
+  border-radius: 0.5rem; /* pill-ish */
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.06s ease, box-shadow 0.12s ease;
+}
+
+.planificador-page .tabs-navigation .tab-link:hover {
+  color: #0f172a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(33,53,71,0.06);
+}
+
+.planificador-page .tabs-navigation .tab-link.active {
+  color: #fff !important;
+  background: linear-gradient(180deg,#2b6bb2 0%, #1f4fa0 60%); /* deep blue base */
+  border: 1px solid rgba(255,215,130,0.18); /* subtle gold rim */
+  box-shadow: 0 8px 20px rgba(47,74,112,0.18), 0 2px 6px rgba(30,30,30,0.08);
+}
+
+.planificador-page .tabs-navigation .tab-link.active:hover {
+  filter: brightness(1.02);
+}
+
+/* Site-themed active/inactive classes used by planificador.js */
+.planificador-page .tabs-navigation .tab-active {
+  /* gold-tinged active style to match requested aesthetic (dorado-azulado) */
+  background: linear-gradient(180deg,#2b6bb2 0%, #1f4fa0 60%);
+  color: #fff !important;
+  border: 1px solid rgba(255,215,130,0.18);
+  box-shadow: 0 8px 20px rgba(47,74,112,0.18), 0 2px 6px rgba(30,30,30,0.08);
+}
+.planificador-page .tabs-navigation .tab-active:hover { filter: brightness(1.02); }
+.planificador-page .tabs-navigation .tab-inactive {
+  color: #213547;
+  background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(245,247,250,0.85));
+  border: 1px solid rgba(33,53,71,0.06);
+}
+.planificador-page .tabs-navigation .tab-inactive:focus {
+  outline: 2px solid rgba(0,0,0,0.06);
+  outline-offset: 2px;
+}
+
+/* Compact, professional table/grid layout */
+.planificador-page .assignment-table-wrapper { overflow: hidden; border-radius: 8px; }
+.planificador-page .assignment-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.92rem; }
+.planificador-page .assignment-table th, .planificador-page .assignment-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.06); vertical-align: middle; }
+.planificador-page .assignment-table thead th { background: linear-gradient(90deg,#2563eb,#1e40af); color: #fff; font-weight:600; font-size:0.78rem; text-transform:uppercase; }
+.planificador-page .assignment-table tbody tr:hover { background: rgba(37,99,235,0.04); }
+.planificador-page .assignment-table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.planificador-page .assignment-table .assignment-title-cell { width: 28%; padding-left: 12px; font-weight:600; color: #1f2937; }
+.planificador-page .assignment-table .date-row td { background-color: #f3f4f6; font-weight:700; font-size:0.95rem; }
+
+/* SMM table specific tweaks */
+.planificador-page .smm-table th.header-group { text-align: center; }
+
+/* Make custom selects visible and compact - white participant boxes with blue/gold accents */
+.planificador-page .custom-select-wrapper { display: inline-block; min-width: 140px; max-width: 100%; }
+.planificador-page .custom-select-trigger {
+  background: #ffffff;
+  border: 1px solid rgba(30,79,160,0.10); /* subtle blue border */
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  color: #07263b; /* deep blue text */
+  box-shadow: 0 4px 12px rgba(47,74,112,0.06);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.planificador-page .custom-select-trigger span { display: inline-block; vertical-align: middle; }
+.planificador-page .custom-select-trigger .arrow { margin-left: 8px; opacity: 0.9; border-color: rgba(7,38,59,0.6); }
+.planificador-page .custom-option { background: #fff; color: #07263b; }
+.planificador-page .custom-option:hover { background: linear-gradient(90deg, rgba(227,197,106,0.12), rgba(37,99,235,0.04)); }
+/* Styles for historial custom triggers to show truncated names with tooltip */
+.planificador-page .custom-select-trigger-2 {
+  background: #fff; border: 1px solid rgba(30,79,160,0.08); padding: 6px 10px; border-radius: 8px; font-size: 0.92rem; color: #07263b;
+  display: inline-block; min-width: 140px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.planificador-page .custom-select-trigger-2:hover { box-shadow: 0 6px 14px rgba(47,74,112,0.06); }
+.planificador-page .history-table-cell .custom-select-wrapper-2 { width: 100%; }
+
+/* Tooltip for showing full names in historial */
+.custom-tooltip {
+  position: absolute;
+  background: linear-gradient(180deg,#dff7ef 0%, #109971 100%);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(16,153,113,0.18);
+  z-index: 4000;
+  pointer-events: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Month selector styling (filter) */
+.planificador-page .header-container { gap: 12px; }
+.planificador-page #month-selector { appearance: none; -webkit-appearance:none; background: #fff; border: 1px solid rgba(15,23,42,0.08); padding: 8px 12px; border-radius: 8px; box-shadow: 0 1px 2px rgba(16,24,40,0.04); font-weight:600; }
+
+/* Compact responsive adjustments */
+@media (max-width: 900px) {
+  .planificador-page .assignment-table { font-size: 0.85rem; }
+  .planificador-page .assignment-table .assignment-title-cell { width: 40%; }
+  .planificador-page .custom-select-wrapper { min-width: 110px; }
+}
+
+@media (max-width: 520px) {
+  .planificador-page .assignment-table thead { display: none; }
+  .planificador-page .assignment-table, .planificador-page .assignment-table tbody, .planificador-page .assignment-table tr, .planificador-page .assignment-table td { display: block; width: 100%; }
+  .planificador-page .assignment-table tr { margin-bottom: 12px; border-bottom: 1px solid rgba(31,41,55,0.04); }
+  .planificador-page .assignment-table td { white-space: normal; }
+}
+
+/* Ensure tab content visibility */
+.planificador-page .tab-pane { display: none; }
+.planificador-page .tab-pane.active { display: block; }
+
+/* --- Styles moved from templates/planificador.html <style> block --- */
+/* Root variables and layout for planificador page (migrated from template) */
+:root {
+  --primary-color: #007bff;
+  --primary-color-alt: #c19a26;
+  --secondary-color: #8b2c39;
+  --treasures-color: #4a6c8b;
+  --bg-color: #f0f2f5;
+  --card-bg-color: #ffffff;
+  --text-color: #000000;
+  --secondary-text-color: #8e8e93;
+  --divider-color: #e5e5ea;
+  --shadow: 0 4px 12px rgba(0,0,0,0.08);
+  --no-corresponde-text: #b22222;
+}
+html { scroll-behavior: smooth; }
+body.planificador-page { background-color: var(--bg-color); color: var(--text-color); }
+.container { max-width: 95%; margin: 0 auto; padding-bottom: 30px; }
+.header-container { position: sticky; top: 0; z-index: 1000; background-color: rgba(247, 247, 247, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--divider-color); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+h1 { font-size: 1.7em; font-weight: 700; margin: 0; }
+#month-selector { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--divider-color); background-color: var(--card-bg-color); font-size: 1em; font-family: inherit; }
+/* Jade-green primary action */
+#save-changes-btn, #save-changes-btn-2 {
+  background: linear-gradient(180deg, #dff7ef 0%, #109971 100%);
+  color: #ffffff;
+  padding: 8px 18px; border: 1px solid rgba(16,153,113,0.14);
+  border-radius: 10px; font-size: 1em; font-weight: 700; cursor: pointer;
+  box-shadow: 0 8px 20px rgba(16,153,113,0.10);
+  transition: transform 0.16s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+#save-changes-btn:hover:not(:disabled), #save-changes-btn-2:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(16,153,113,0.14); filter: brightness(1.04); }
+#save-changes-btn:disabled, #save-changes-btn-2:disabled { background-color: #e6f4ef; color: #ffffff; cursor: not-allowed; box-shadow: none; border-color: rgba(15,23,42,0.04); opacity: 0.85; }
+#status, #status-2 { text-align: center; font-weight: 600; padding: 20px; background-color: var(--card-bg-color); border-radius: 12px; margin: 20px 0; }
+.tabs-navigation { gap: 0.25rem; }
+.tabs-content-area { padding-top: 20px; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+.assignment-table-wrapper { background-color: var(--card-bg-color); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+.assignment-table { width: 100%; border-collapse: collapse; }
+.assignment-table th, .assignment-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--divider-color); }
+.assignment-table th { background-color: #f7f7f7; font-size: 0.8em; font-weight: 600; text-transform: uppercase; color: var(--secondary-text-color); text-align: center; }
+.assignment-table thead th:first-child { text-align: left; }
+.assignment-table tr:last-child td { border-bottom: none; }
+.assignment-table td:first-child { font-weight: 600; }
+.smm-table .date-row td { background-color: #f8f8fa; font-weight: 700; font-size: 1.0em; padding: 10px 15px; }
+.smm-table .assignment-title-cell { padding-left: 20px; font-style: italic; font-size: 0.9em; color: var(--secondary-text-color); }
+.smm-table .header-group { border-bottom: 1px solid #ccc; }
+.custom-select-wrapper { min-width: 150px; }
+.custom-select-trigger { width: 100%; text-align: left; padding: 6px 4px; border: 1px solid transparent; border-radius: 5px; background-color: transparent; font-size: 0.9em; font-family: inherit; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.custom-select-trigger .arrow { border: solid var(--secondary-text-color); border-width: 0 2px 2px 0; display: inline-block; padding: 3px; transform: rotate(45deg); }
+#global-custom-options { position: fixed; display: block; width: 320px; max-width: 90vw; background-color: #2c2c2e; color: #fff; border-radius: 12px; z-index: 2000; max-height: 40vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.2); opacity: 0; visibility: hidden; transform: scale(0.95); transition: opacity 0.15s ease, transform 0.15s ease; }
+#global-custom-options.active { opacity: 1; visibility: visible; transform: scale(1); }
+.custom-option { padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #48484a; display: flex; justify-content: space-between; align-items: center; }
+.custom-option:last-child { border-bottom: none; }
+.custom-option:hover { background-color: #48484a; }
+.custom-option .option-text .name { font-weight: 600; font-size: 1.05em; display: block; }
+.custom-option .option-text .history { font-size: 0.8em; color: #aeaeb2; display: block; margin-top: 3px; }
+.custom-option .selection-indicator { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #aeaeb2; transition: all 0.2s; }
+.custom-option.selected .selection-indicator { background-color: var(--primary-color-alt); border-color: var(--primary-color-alt); }
+.assignment-select { display: none; }
+.not-applicable { color: var(--no-corresponde-text); font-style: italic; font-size: 0.85em; text-align: center; display: block; padding: 8px 0; }
+@media (max-width: 900px) { h1 { font-size: 1.2em; } #month-selector { font-size: 0.9em; } .assignment-table-wrapper { overflow-x: auto; } .assignment-table th, .assignment-table td { white-space: nowrap; } }
+/* --- end moved styles --- */
+
+/* Participant filter: make the global filter input borderless and blend with the menu */
+#global-options-filter {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 8px 10px !important;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  color: inherit;
+}
+
+/* class-based selectors used by JS-injected elements */
+.global-options-filter { border: none !important; background: transparent !important; box-shadow: none !important; padding: 8px 10px !important; font-size: 0.95rem; border-radius: 8px; color: inherit; flex:1; }
+.global-options-clear { background: transparent; border: none; color: rgba(7,38,59,0.7); cursor: pointer; padding:6px; font-weight:600; }
+/* Strong reset to override author/user-agent or utility CSS */
+#global-custom-options .global-options-filter,
+.global-options-filter {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background: transparent !important;
+}
+.global-options-filter:focus { outline: none !important; box-shadow: none !important; }
+
+/* Keep month selector visible by default; the container uses its natural layout */
+.planificador-page .month-navigation-container { display: block; }
+
+/* Columnar grid lines: vertical separators per column and horizontal row separators */
+/* Applied to desktop/tablet layouts; mobile collapse keeps stacked blocks */
+.planificador-page .assignment-table th, .planificador-page .assignment-table td {
+  /* ensure borders render inside cell box */
+  box-sizing: border-box;
+  border-right: 1px solid rgba(0,0,0,0.08); /* slightly stronger for visibility */
+}
+.planificador-page .assignment-table th:last-child, .planificador-page .assignment-table td:last-child {
+  border-right: none;
+}
+.planificador-page .assignment-table tbody tr td {
+  border-bottom: 1px solid rgba(0,0,0,0.08); /* slightly stronger */
+}
+.planificador-page .assignment-table tbody tr:last-child td { border-bottom: none; }
+
+/* Row hover highlight and subtle stronger borders on hover for emphasis */
+.planificador-page .assignment-table tbody tr:hover td { background: rgba(37,99,235,0.04); }
+.planificador-page .assignment-table tbody tr:hover td { border-bottom-color: rgba(0,0,0,0.12); }
+
+
+/* History table (flex-based) – emulate grid lines by adding right borders to cells and bottom borders to rows */
+.history-table-header { display: flex; background-color: #f9fafb; border-bottom: 1px solid rgba(0,0,0,0.08); }
+.history-table-header .history-table-header-cell { flex: 1; padding: 0.9rem 1.2rem; box-sizing: border-box; border-right: 1px solid rgba(0,0,0,0.08); font-weight:700; }
+.history-table-header .history-table-header-cell:last-child { border-right: none; }
+.history-table-row { display: flex; border-bottom: 1px solid rgba(0,0,0,0.08); }
+.history-table-row .history-table-cell { flex: 1; padding: 1rem 1.5rem; box-sizing: border-box; border-right: 1px solid rgba(0,0,0,0.08); }
+.history-table-row .history-table-cell:last-child { border-right: none; }
+.history-table-row:last-child { border-bottom: none; }
+
+/* Hover highlight for history rows/cells */
+.history-table-row:hover .history-table-cell { background: rgba(37,99,235,0.035); }
+.history-table-row .history-table-cell:hover { background: rgba(37,99,235,0.05); border-right-color: rgba(0,0,0,0.12); }
+
+/* Make sure mobile stacked layout doesn't show vertical borders awkwardly */
+@media (max-width: 520px) {
+  .planificador-page .assignment-table th, .planificador-page .assignment-table td { border-right: none; }
+  .history-table-header .history-table-header-cell, .history-table-row .history-table-cell { border-right: none; }
+}

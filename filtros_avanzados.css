@@ -1,0 +1,222 @@
+.filters-container h2 { margin-top: 0; color: var(--primary-color); }
+        .filter-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--medium-gray); }
+        .filter-btn { padding: 8px 15px; border: 1px solid var(--medium-gray); background-color: var(--light-gray); cursor: pointer; border-radius: 20px; font-size: .9em; }
+        .filter-btn.active { background-color: var(--primary-color); color: #fff; border-color: var(--primary-color); font-weight: 700; }
+        .table-wrapper { max-height: 70vh; overflow: auto; }
+        .filters-table { width: 100%; border-collapse: collapse; font-size: .9em; }
+        .filters-table th, .filters-table td { border: 1px solid var(--medium-gray); padding: 8px; text-align: center; min-width: 60px; }
+        .filters-table th { background-color: var(--light-gray); position: sticky; top: 0; z-index: 2; }
+        .filters-table td:first-child, .filters-table th:first-child { text-align: left; font-weight: 700; position: sticky; left: 0; background-color: #fdfdfd; z-index: 1; min-width: 150px; }
+        .filters-table th:first-child { z-index: 3; }
+        .filters-legend { padding: 10px 15px; border: 1px solid var(--medium-gray); background-color: var(--light-gray); border-radius: 5px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+        .assignment-marker { display: inline-block; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: .9em; line-height: 1.2; border: 1px solid rgba(0,0,0,.1); }
+        .sala-main { background-color: #cfe2ff; color: #052c65; }
+        .sala-aux2 { background-color: #d1e7dd; color: #0a3622; }
+        .sala-aux3 { background-color: #fff3cd; color: #664d03; }
+
+/* --- Gender Report Styles --- */
+.gender-report-container {
+    margin-top: 1.5rem;
+    background-color: var(--card-bg-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.gender-report-container .report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.gender-report-container h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--text-color);
+}
+
+.gender-filter-buttons {
+    display: flex;
+    gap: 0.5rem;
+    background-color: var(--light-gray);
+    padding: 0.5rem;
+    border-radius: 8px;
+}
+
+.gender-filter-buttons button {
+    padding: 0.5rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: transparent;
+    color: var(--text-color-light);
+}
+
+.gender-filter-buttons button:hover:not(.active) {
+    background-color: var(--medium-gray);
+}
+
+.gender-filter-buttons button.active {
+    background-color: var(--primary-color);
+    color: var(--active-nav-text);
+    box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+.report-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-left: auto; /* Push actions to the right */
+}
+
+.action-button-report {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border: 1px solid var(--border-color);
+    background-color: var(--card-bg-color);
+    color: var(--text-color);
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-button-report i {
+    color: var(--text-color-light);
+}
+
+.action-button-report:hover:not(:disabled) {
+    background-color: var(--light-gray);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.action-button-report:hover:not(:disabled) i {
+    color: var(--primary-color);
+}
+
+.action-button-report:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.gender-report-table-container {
+    overflow-x: auto;
+}
+
+.gender-report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+
+.gender-report-table th,
+.gender-report-table td {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.gender-report-table thead th {
+    background-color: var(--light-gray);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.gender-report-table tbody tr:nth-child(even) {
+    background-color: var(--light-gray);
+}
+
+.gender-report-table tbody tr:hover {
+    background-color: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+.gender-report-table td:first-child,
+.gender-report-table th:first-child {
+    text-align: right;
+    width: 50px;
+    padding-right: 1rem;
+}
+
+
+.print-only-title {
+    display: none;
+}
+.no-print {
+    /* this class can be applied to elements to hide them when printing */
+}
+
+
+/* --- Print Styles for Gender Report --- */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #printable-gender-report, #printable-gender-report * {
+        visibility: visible;
+    }
+    #printable-gender-report {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        padding: 1rem;
+        margin: 0;
+        border: none;
+        box-shadow: none;
+        background-color: #fff !important;
+        color: #000 !important;
+    }
+    .no-print {
+        display: none !important;
+    }
+    .print-only-title {
+        display: block !important;
+        text-align: center;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+        color: #000;
+    }
+
+    .gender-report-table-container {
+        overflow: visible;
+    }
+
+    .gender-report-table {
+        font-size: 9pt;
+        color: #000;
+        width: 100%;
+    }
+
+    .gender-report-table th,
+    .gender-report-table td {
+        border: 1px solid #ccc;
+        padding: 0.4rem;
+    }
+
+    .gender-report-table thead th {
+        background-color: #eee !important;
+        color: #000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .gender-report-table tbody tr:nth-child(even) {
+        background-color: #f9f9f9 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

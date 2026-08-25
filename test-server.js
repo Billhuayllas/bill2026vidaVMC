@@ -1,0 +1,7 @@
+import http from 'http';
+
+http.get('http://127.0.0.1:3000/api/rol-grupos/1', (res) => {
+  let data = '';
+  res.on('data', chunk => data += chunk);
+  res.on('end', () => console.log('Response:', res.statusCode, data));
+}).on('error', err => console.log('Error:', err.message));
