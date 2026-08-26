@@ -1,9 +1,12 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Group, GroupMember, Publisher } from './types';
 import { supabase } from '../../lib/supabase';
+import { fetchAllMinistryReports } from '../../lib/supabasePagination';
 import { useCongregation } from '../../lib/CongregationContext';
 import { isReportAuxiliar } from './utils';
 import { BulkCardsModal } from './BulkCardsModal';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { printHtmlDocument, downloadHtmlAsPdf } from './printUtils';
 import html2pdf from 'html2pdf.js';
 import { 
     Users, 
@@ -57,6 +60,14 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
     const [showBulkCardsModal, setShowBulkCardsModal] = useState<boolean>(false);
     const [copiedShare, setCopiedShare] = useState<boolean>(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+    const [previewModalData, setPreviewModalData] = useState<{
+        isOpen: boolean;
+        pages: string[];
+        title: string;
+        fileName: string;
+        layoutLabel?: string;
+    } | null>(null);
+
 
     // State for group management
     const [showGroupModal, setShowGroupModal] = useState<boolean>(false);
@@ -200,14 +211,7 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                 const startMonth = `${serviceYear - 1}-09`;
                 const endMonth = `${serviceYear}-08`;
 
-                const { data, error } = await supabase
-                    .from('informes_ministerio')
-                    .select('*')
-                    .eq('congregation_id', currentCongregation.id)
-                    .gte('mes', startMonth)
-                    .lte('mes', endMonth);
-                
-                if (error) throw error;
+                const data = await fetchAllMinistryReports(currentCongregation.id, startMonth, endMonth);
                 setServiceYearReports(data || []);
             } catch (err) {
                 console.error("Error fetching service year reports:", err);
@@ -311,16 +315,27 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
         const curY = currentDate.getFullYear();
         const serviceYear = curM >= 9 ? curY + 1 : curY;
 
-        let startYm = startMonthRaw;
-        // Basic YYYY-MM conversion if needed
-        if (startYm && startYm.trim().length > 0) {
-            const parts = startYm.trim().split('-');
-            if (parts.length === 2 && parts[0].length === 4) {
-               // Assuming it's already YYYY-MM
+        let startYm = '';
+        if (startMonthRaw) {
+            const cleanStr = startMonthRaw.trim().toLowerCase();
+            if (/^\d{4}-\d{2}$/.test(cleanStr)) {
+                startYm = cleanStr;
+            } else {
+                const parts = cleanStr.split('-');
+                if (parts.length === 3 && parts[0].length === 4) {
+                    startYm = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+                } else {
+                    const dma = cleanStr.split('/');
+                    if (dma.length === 3 && dma[2].length === 4) {
+                        startYm = `${dma[2]}-${dma[1].padStart(2, '0')}`;
+                    } else if (dma.length === 2 && dma[1].length === 4) {
+                        startYm = `${dma[1]}-${dma[0].padStart(2, '0')}`;
+                    }
+                }
             }
         }
         
-        if (!startYm || !startYm.match(/^\d{4}-\d{2}$/)) {
+        if (!startYm) {
             startYm = `${serviceYear - 1}-09`; // Fallback to beginning of service year
         }
 
@@ -478,15 +493,7 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
         }
     };
 
-    const handleDownloadFilteredListPdf = async () => {
-        if (!data || data.length === 0) {
-            alert('No hay publicadores en el filtro actual para descargar.');
-            return;
-        }
-
-        if (isGeneratingPdf) return;
-        setIsGeneratingPdf(true);
-
+    const buildListDocumentData = () => {
         const currentDate = new Date();
         const curM = currentDate.getMonth() + 1;
         const curY = currentDate.getFullYear();
@@ -587,7 +594,7 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
         }).join('');
 
         const tableHtml = `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; padding: 15px 20px; background: #ffffff;">
+            <div class="s21-card-page" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; padding: 20px 24px; background: #ffffff; width: 794px; min-height: 1100px; box-sizing: border-box; margin: 0 auto;">
                 <!-- Header -->
                 <div style="border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: flex-end;">
                     <div>
@@ -677,166 +684,192 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
             </div>
         `;
 
-        const container = document.createElement('div');
-        container.style.position = 'absolute';
-        container.style.left = '-9999px';
-        container.style.top = '0';
-        container.style.width = '794px';
-        container.style.backgroundColor = '#ffffff';
-        container.style.color = '#0f172a';
-        container.innerHTML = tableHtml;
-        document.body.appendChild(container);
+        const congSlug = congName.replace(/\s+/g, '_');
+        const fileName = `Lista_${filterSlug}_${congSlug}_${serviceYear}.pdf`;
+
+        return { tableHtml, fileName, title, serviceYear };
+    };
+
+    const handlePreviewListPdf = () => {
+        if (!data || data.length === 0) {
+            alert('No hay publicadores en el filtro actual para visualizar.');
+            return;
+        }
+        const { tableHtml, fileName, title } = buildListDocumentData();
+        setPreviewModalData({
+            isOpen: true,
+            pages: [tableHtml],
+            title,
+            fileName,
+            layoutLabel: 'Padrón Oficial'
+        });
+    };
+
+    const handleDownloadFilteredListPdf = async () => {
+        if (!data || data.length === 0) {
+            alert('No hay publicadores en el filtro actual para descargar.');
+            return;
+        }
+
+        if (isGeneratingPdf) return;
+        setIsGeneratingPdf(true);
 
         try {
-            // Small pause to guarantee full layout calculation
-            await new Promise(resolve => setTimeout(resolve, 80));
-
-            const congSlug = congName.replace(/\s+/g, '_');
-            const fileName = `Lista_${filterSlug}_${congSlug}_${serviceYear}.pdf`;
-            const opt = {
-                margin: [8, 8, 8, 8],
-                filename: fileName,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { 
-                    scale: 2, 
-                    useCORS: true, 
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    windowWidth: 794
-                },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: ['css', 'legacy'] }
-            };
-
-            const pdfFn = (html2pdf as any) || (window as any).html2pdf;
-            if (typeof pdfFn === 'function') {
-                await pdfFn().set(opt).from(container).save();
-            } else {
-                const mod = await import('html2pdf.js');
-                const h2p = (mod as any).default || mod;
-                await h2p().set(opt).from(container).save();
-            }
+            const { tableHtml, fileName } = buildListDocumentData();
+            await downloadHtmlAsPdf(tableHtml, fileName);
         } catch (err) {
             console.error("Error saving PDF:", err);
             alert("Hubo un error al generar el archivo PDF. Por favor verifique e intente nuevamente.");
         } finally {
-            if (document.body.contains(container)) {
-                document.body.removeChild(container);
-            }
             setIsGeneratingPdf(false);
         }
     };
 
       return (
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl p-4 sm:p-7 shadow-xl border border-slate-200/80 dark:border-slate-800/80 max-w-[1100px] mx-auto transition-all">
+        <div 
+            className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-3xl p-4 sm:p-7 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/80 dark:border-slate-800/80 max-w-[1100px] mx-auto transition-all"
+            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}
+        >
             <div className="flex flex-col gap-5 mb-6">
-                {/* Header title & Main Action Toolbar */}
+                {/* Header title & Main Action Toolbar - iOS Style */}
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-5 border-b border-slate-200/80 dark:border-slate-800/80">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
-                            <Users className="w-6 h-6" />
+                    <div className="flex items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 shrink-0">
+                            <Users className="w-6 h-6" strokeWidth={2.2} />
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
-                                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Publicadores</h2>
-                                <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
+                            <div className="flex items-center gap-2.5">
+                                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                    Publicadores
+                                </h2>
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/60 shadow-xs">
                                     {baseData.length} Total
                                 </span>
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Padrón general, nombramientos y registro de actividad</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                                Padrón general, nombramientos y registro de actividad
+                            </p>
                         </div>
                     </div>
                     
-                    {/* Action buttons toolbar */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                            onClick={handleDownloadFilteredListPdf}
-                            disabled={isGeneratingPdf}
-                            className="px-3.5 py-2 rounded-xl cursor-pointer font-bold text-xs bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Descargar lista filtrada en formato PDF"
-                        >
-                            {isGeneratingPdf ? (
-                                <Loader2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-spin" />
-                            ) : (
-                                <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                            )}
-                            <span>{isGeneratingPdf ? 'Generando PDF...' : 'Descargar Lista (PDF)'}</span>
-                        </button>
+                    {/* Action buttons toolbar - Organized with clear contrast, dividers and mobile grid */}
+                    <div className="w-full lg:w-auto flex flex-col gap-3">
+                        {/* Mobile Category 1: PDF & Export Actions */}
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block sm:hidden">
+                                📄 Exportación & Documentos
+                            </span>
+                            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full">
+                                <button
+                                    onClick={handlePreviewListPdf}
+                                    className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white border border-indigo-700 transition-all duration-150 flex items-center justify-center gap-2 shadow-sm shadow-indigo-600/30 active:scale-95 text-center"
+                                    title="Previsualizar documento antes de imprimir o descargar"
+                                >
+                                    <Eye className="w-4 h-4 shrink-0" strokeWidth={2.4} />
+                                    <span className="truncate">Previsualizar</span>
+                                </button>
 
-                        <button
-                            onClick={() => setShowBulkCardsModal(true)}
-                            className="px-3.5 py-2 rounded-xl cursor-pointer font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-700 border border-indigo-600 transition-all duration-200 flex items-center gap-2 shadow-sm shadow-indigo-600/20 hover:shadow active:scale-95"
-                            title="Descargar tarjetas S-21 masivas en PDF"
-                        >
-                            <IdCard className="w-4 h-4" />
-                            <span>Tarjetas S-21 (PDF)</span>
-                        </button>
+                                <button
+                                    onClick={handleDownloadFilteredListPdf}
+                                    disabled={isGeneratingPdf}
+                                    className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white border border-rose-700 transition-all duration-150 flex items-center justify-center gap-2 shadow-sm shadow-rose-600/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-center"
+                                    title="Descargar lista filtrada en formato PDF"
+                                >
+                                    {isGeneratingPdf ? (
+                                        <Loader2 className="w-4 h-4 text-white animate-spin shrink-0" />
+                                    ) : (
+                                        <FileText className="w-4 h-4 text-white shrink-0" strokeWidth={2.4} />
+                                    )}
+                                    <span className="truncate">{isGeneratingPdf ? 'Generando...' : 'Lista (PDF)'}</span>
+                                </button>
 
-                        {currentCongregation && (
-                            <button
-                                onClick={() => {
-                                    const shareUrl = `${window.location.origin}${window.location.pathname}?view=publisher_report&congregation_id=${currentCongregation.id}`;
-                                    navigator.clipboard.writeText(shareUrl).then(() => {
-                                        setCopiedShare(true);
-                                        setTimeout(() => setCopiedShare(false), 2500);
-                                    }).catch(() => {
-                                        alert('Enlace: ' + shareUrl);
-                                    });
-                                }}
-                                className={`px-3 py-2 rounded-xl font-bold text-xs border transition-all duration-200 flex items-center gap-1.5 shadow-sm active:scale-95 ${
-                                    copiedShare
-                                    ? 'bg-emerald-600 text-white border-emerald-600'
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                                }`}
-                                title="Compartir padrón de precursores y fichas S-21"
-                            >
-                                {copiedShare ? <CheckCircle2 className="w-4 h-4 text-white" /> : <Share2 className="w-4 h-4 text-slate-500" />}
-                                <span>{copiedShare ? '¡Copiado!' : 'Compartir'}</span>
-                            </button>
-                        )}
+                                <button
+                                    onClick={() => setShowBulkCardsModal(true)}
+                                    className="col-span-2 sm:col-span-1 w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white border border-blue-700 transition-all duration-150 flex items-center justify-center gap-2 shadow-sm shadow-blue-600/30 active:scale-95 text-center"
+                                    title="Descargar tarjetas S-21 masivas en PDF (2 en 1)"
+                                >
+                                    <IdCard className="w-4 h-4 shrink-0" strokeWidth={2.4} />
+                                    <span className="truncate">Tarjetas S-21</span>
+                                </button>
+                            </div>
+                        </div>
 
-                        {!isReadOnly && (
-                            <button
-                                onClick={handleToggleEditMode}
-                                className={`px-3 py-2 rounded-xl cursor-pointer font-bold text-xs border transition-all duration-200 flex items-center gap-1.5 shadow-sm active:scale-95 ${
-                                    isEditMode 
-                                    ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20' 
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 hover:text-slate-900'
-                                }`}
-                            >
-                                {isEditMode ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                                <span>{isEditMode ? 'Edición Activa' : 'Modo Edición'}</span>
-                            </button>
-                        )}
+                        {/* Visual Divider between functional groups */}
+                        <div className="w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5"></div>
 
-                        {isEditMode && (
-                            <button
-                                onClick={() => setShowGroupModal(true)}
-                                className="px-3.5 py-2 rounded-xl cursor-pointer font-bold text-xs bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 transition-all duration-200 flex items-center gap-1.5 shadow-sm active:scale-95"
-                            >
-                                <Layers className="w-3.5 h-3.5" />
-                                <span>Gestionar Grupos</span>
-                            </button>
-                        )}
+                        {/* Mobile Category 2: Management & Sharing */}
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block sm:hidden">
+                                ⚙️ Acciones & Control
+                            </span>
+                            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full">
+                                {currentCongregation && (
+                                    <button
+                                        onClick={() => {
+                                            const shareUrl = `${window.location.origin}${window.location.pathname}?view=publisher_report&congregation_id=${currentCongregation.id}`;
+                                            navigator.clipboard.writeText(shareUrl).then(() => {
+                                                setCopiedShare(true);
+                                                setTimeout(() => setCopiedShare(false), 2500);
+                                            }).catch(() => {
+                                                alert('Enlace: ' + shareUrl);
+                                            });
+                                        }}
+                                        className={`w-full sm:w-auto px-3.5 py-2.5 rounded-xl font-extrabold text-xs border transition-all duration-150 flex items-center justify-center gap-2 shadow-xs active:scale-95 cursor-pointer text-center ${
+                                            copiedShare
+                                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-emerald-600/30'
+                                            : 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-700 shadow-indigo-600/25'
+                                        }`}
+                                        title="Compartir padrón de precursores y fichas S-21"
+                                    >
+                                        {copiedShare ? <CheckCircle2 className="w-4 h-4 text-white shrink-0" /> : <Share2 className="w-4 h-4 text-white shrink-0" strokeWidth={2.2} />}
+                                        <span className="truncate">{copiedShare ? '¡Copiado!' : 'Compartir'}</span>
+                                    </button>
+                                )}
+
+                                {!isReadOnly && (
+                                    <button
+                                        onClick={handleToggleEditMode}
+                                        className={`w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs border transition-all duration-150 flex items-center justify-center gap-2 shadow-xs active:scale-95 text-center ${
+                                            isEditMode 
+                                            ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700 shadow-emerald-600/30' 
+                                            : 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-600 shadow-amber-500/25'
+                                        }`}
+                                    >
+                                        {isEditMode ? <Unlock className="w-4 h-4 shrink-0" strokeWidth={2.4} /> : <Lock className="w-4 h-4 shrink-0" strokeWidth={2.4} />}
+                                        <span className="truncate">{isEditMode ? 'Edición Activa' : 'Modo Edición'}</span>
+                                    </button>
+                                )}
+
+                                {isEditMode && (
+                                    <button
+                                        onClick={() => setShowGroupModal(true)}
+                                        className="col-span-2 sm:col-span-1 w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 transition-all duration-150 flex items-center justify-center gap-2 shadow-sm active:scale-95 text-center border border-slate-950 dark:border-white"
+                                    >
+                                        <Layers className="w-4 h-4 shrink-0" strokeWidth={2.2} />
+                                        <span className="truncate">Gestionar Grupos</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Single Unified Search & Filter Toolbar */}
+                {/* Single Unified Search & Filter Toolbar - iOS Input Style */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
                     {/* Search Input */}
                     <div className="relative flex-1">
-                        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" strokeWidth={2.2} />
                         <input 
                             type="text" 
                             placeholder="Buscar publicador por nombre..." 
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-800 dark:text-white placeholder:text-slate-400 shadow-sm"
+                            className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/60 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 transition-all font-medium text-slate-800 dark:text-white placeholder:text-slate-400"
                         />
                         {searchTerm && (
                             <button
                                 onClick={() => setSearchTerm('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
                             >
                                 <X className="w-3.5 h-3.5" />
                             </button>
@@ -845,13 +878,13 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
 
                     {/* Single Unified Filter Dropdown */}
                     <div className="relative sm:w-80 shrink-0">
-                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none flex items-center">
-                            <Filter className="w-4 h-4" />
+                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-600 dark:text-blue-400 pointer-events-none flex items-center">
+                            <Filter className="w-4 h-4" strokeWidth={2.2} />
                         </div>
                         <select
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value)}
-                            className="w-full pl-10 pr-9 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200 cursor-pointer shadow-sm appearance-none"
+                            className="w-full pl-10 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/70 dark:bg-slate-800/60 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 transition-all font-bold text-slate-800 dark:text-slate-200 cursor-pointer appearance-none"
                         >
                             <option value="todos">Todos los Publicadores ({baseData.length})</option>
                             
@@ -874,17 +907,17 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                             </optgroup>
                         </select>
                         <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                            <ChevronDown className="w-4 h-4" />
+                            <ChevronDown className="w-4 h-4" strokeWidth={2.2} />
                         </div>
                     </div>
                 </div>
 
                 {/* Active Filter Ribbon */}
                 {(filterType !== 'todos' || searchTerm.trim() !== '') && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-slate-900/60 border border-indigo-100 dark:border-indigo-900/60 rounded-xl">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 bg-gradient-to-r from-blue-50/90 to-indigo-50/90 dark:from-blue-950/50 dark:to-slate-900/70 border border-blue-200/80 dark:border-blue-800/60 rounded-2xl shadow-xs">
                         <div className="flex items-center gap-2 flex-wrap">
                             {filterType !== 'todos' && (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-sm">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white rounded-full text-xs font-bold shadow-xs">
                                     <Filter className="w-3.5 h-3.5" />
                                     {filterType === 'precursor regular' ? 'Precursores Regulares' :
                                      filterType === 'precursor especial' ? 'Precursores Especiales' :
@@ -907,31 +940,34 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2 flex-wrap">
+                        {/* Divider on mobile */}
+                        <div className="block sm:hidden w-full h-px bg-blue-200/70 dark:bg-blue-900/60 my-0.5"></div>
+
+                        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
                             <button
                                 onClick={handleDownloadFilteredListPdf}
                                 disabled={isGeneratingPdf}
-                                className="text-xs font-bold px-3 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full sm:w-auto text-xs font-extrabold px-3 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white border border-rose-700 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-center"
                                 title="Descargar listado filtrado en PDF"
                             >
                                 {isGeneratingPdf ? (
-                                    <Loader2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-spin" />
+                                    <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
                                 ) : (
-                                    <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                    <FileText className="w-3.5 h-3.5 text-white" />
                                 )}
-                                <span>{isGeneratingPdf ? 'Generando...' : `Lista PDF (${data.length})`}</span>
+                                <span className="truncate">{isGeneratingPdf ? 'Generando...' : `Lista PDF (${data.length})`}</span>
                             </button>
                             <button
                                 onClick={() => setShowBulkCardsModal(true)}
-                                className="text-xs font-bold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                className="w-full sm:w-auto text-xs font-extrabold px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:bg-blue-800 border border-blue-700 shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 text-center"
                                 title="Descargar tarjetas S-21 de los publicadores filtrados"
                             >
                                 <IdCard className="w-3.5 h-3.5" />
-                                <span>{data.length} Tarjetas S-21</span>
+                                <span className="truncate">{data.length} Tarjetas S-21</span>
                             </button>
                             <button
                                 onClick={() => { setFilterType('todos'); setSearchTerm(''); }}
-                                className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-2.5 py-1.5 hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex items-center gap-1 font-semibold"
+                                className="col-span-2 sm:col-span-1 w-full sm:w-auto text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 px-3 py-2 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1 text-center"
                                 title="Quitar todos los filtros"
                             >
                                 <X className="w-3.5 h-3.5" />
@@ -942,31 +978,61 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                 )}
             </div>
             
-            {/* DESKTOP TABLE VIEW */}
-            <div className="hidden md:block w-full overflow-x-auto mt-6 bg-white rounded-lg shadow-sm border border-slate-200">
+            {/* DESKTOP TABLE VIEW - iOS Style */}
+            <div className="hidden md:block w-full overflow-hidden mt-6 bg-white dark:bg-slate-900 rounded-2xl shadow-xs border border-slate-200/90 dark:border-slate-800">
                 <table className="w-full min-w-[700px] border-collapse text-sm">
                     <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                            <th className="p-4 text-left font-bold text-slate-500 uppercase text-[11px] tracking-wider w-1/3 border-r border-slate-200">NOMBRE</th>
-                            <th className="p-4 text-left font-bold text-slate-500 uppercase text-[11px] tracking-wider border-r border-slate-200">INFORMACIÓN (PRECURSORES)</th>
-                            <th className="p-4 text-center font-bold text-slate-500 uppercase text-[11px] tracking-wider w-1/4">GRUPO</th>
+                        <tr className="bg-slate-50/90 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            <th className="py-3.5 px-5 text-left w-[38%] border-r border-slate-200/60 dark:border-slate-800/60">
+                                Nombre & Nombramiento
+                            </th>
+                            <th className="py-3.5 px-5 text-left border-r border-slate-200/60 dark:border-slate-800/60">
+                                Información (Precursores)
+                            </th>
+                            <th className="py-3.5 px-5 text-center w-[22%]">
+                                Grupo
+                            </th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900">
                         {data.map((row, idx) => {
                             const pStats = row.pStats;
+                            const role = row.role || 'Publicador';
+                            
+                            // iOS Role badge styling
+                            const getRoleBadge = (r: string) => {
+                                if (r === 'Anciano') {
+                                    return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60';
+                                }
+                                if (r === 'Siervo ministerial') {
+                                    return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/60';
+                                }
+                                if (r === 'Precursor Regular') {
+                                    return 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60';
+                                }
+                                if (r === 'Precursor Especial') {
+                                    return 'bg-purple-50 text-purple-800 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60';
+                                }
+                                if (r === 'Precursor Auxiliar') {
+                                    return 'bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/60';
+                                }
+                                if (r === 'Inactivo') {
+                                    return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60';
+                                }
+                                return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+                            };
                             
                             return (
-                                <tr key={idx} className={`hover:bg-slate-50 transition-colors ${updating === row.publisher.nombre ? 'bg-amber-50' : ''}`}>
+                                <tr key={idx} className={`hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${updating === row.publisher.nombre ? 'bg-amber-50/60 dark:bg-amber-950/20' : ''}`}>
                                     <td 
-                                        className={`p-4 align-middle border-b border-r border-slate-200 ${(!isEditMode && onSelectPublisher) ? 'text-blue-600 cursor-pointer' : 'text-slate-800 cursor-default'}`}
+                                        className={`py-3.5 px-5 align-middle border-r border-slate-100 dark:border-slate-800/60 ${(!isEditMode && onSelectPublisher) ? 'text-blue-600 cursor-pointer' : 'text-slate-800 dark:text-slate-200 cursor-default'}`}
                                         onClick={() => !isEditMode && onSelectPublisher && onSelectPublisher(row.publisher.nombre)}
                                     >
                                         <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-2 flex-wrap font-semibold">
+                                            <div className="flex items-center gap-2 flex-wrap font-bold text-[13.5px]">
                                                 {isEditMode ? (
                                                     editingPubId === row.publisher.id ? (
-                                                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                                                             <input 
                                                                 type="text" 
                                                                 value={editingPubValue} 
@@ -975,44 +1041,48 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                                                                     if (e.key === 'Enter') handleSavePublisherNameCompleto(row.publisher.id, row.publisher.nombre);
                                                                     else if (e.key === 'Escape') setEditingPubId(null);
                                                                 }}
-                                                                className="p-1 text-xs rounded border border-slate-200 outline-none focus:ring-1 focus:ring-indigo-400 font-medium text-slate-800"
+                                                                className="px-2.5 py-1 text-xs rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold text-slate-900 bg-white"
                                                                 autoFocus
                                                             />
                                                             <button 
                                                                 onClick={() => handleSavePublisherNameCompleto(row.publisher.id, row.publisher.nombre)}
-                                                                className="p-1 text-emerald-600 hover:text-emerald-800 transition-colors"
+                                                                className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
                                                                 title="Guardar nombre"
                                                             >
-                                                                <i className="fas fa-check text-xs"></i>
+                                                                <Check className="w-4 h-4" />
                                                             </button>
                                                             <button 
                                                                 onClick={() => setEditingPubId(null)}
-                                                                className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                                                                className="p-1 rounded-md text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
                                                                 title="Cancelar"
                                                             >
-                                                                <i className="fas fa-times text-xs"></i>
+                                                                <X className="w-4 h-4" />
                                                             </button>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span>{row.publisher.nombre_completo || row.publisher.nombre}</span>
+                                                        <div className="flex items-center gap-1.5 group">
+                                                            <span className="text-slate-900 dark:text-white font-bold">{row.publisher.nombre_completo || row.publisher.nombre}</span>
                                                             <button 
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     setEditingPubId(row.publisher.id);
                                                                     setEditingPubValue(row.publisher.nombre_completo || row.publisher.nombre || '');
                                                                 }}
-                                                                className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-slate-100 rounded transition-colors"
+                                                                className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-md transition-colors opacity-75 group-hover:opacity-100 cursor-pointer"
                                                                 title="Editar Nombre Completo"
                                                             >
-                                                                <i className="fas fa-pen text-[10px]"></i>
+                                                                <Edit2 className="w-3 h-3" />
                                                             </button>
                                                         </div>
                                                     )
                                                 ) : (
-                                                    <span>{row.publisher.nombre_completo || row.publisher.nombre}</span>
+                                                    <span className="text-slate-900 dark:text-slate-100 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                                        {row.publisher.nombre_completo || row.publisher.nombre}
+                                                        {onSelectPublisher && (
+                                                            <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-blue-500" />
+                                                        )}
+                                                    </span>
                                                 )}
-                                                {!isEditMode && onSelectPublisher && <i className="fas fa-external-link-alt text-[0.7rem] text-slate-400"></i>}
                                             </div>
                                             {isEditMode ? (
                                                 editingRolePubId === row.publisher.id ? (
@@ -1028,7 +1098,7 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                                                                         setEditingRoleValue(val);
                                                                     }
                                                                 }}
-                                                                className="p-1 text-[11px] rounded border border-slate-300 outline-none focus:ring-1 focus:ring-indigo-400 font-semibold text-slate-700 bg-white cursor-pointer"
+                                                                className="px-2 py-1 text-[11px] rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500/20 font-semibold text-slate-700 bg-white cursor-pointer"
                                                             >
                                                                 <option value="Publicador">Publicador</option>
                                                                 <option value="Anciano">Anciano</option>
@@ -1049,16 +1119,16 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                                                                     if (e.key === 'Enter') handleSavePublisherRole(row, editingRoleValue);
                                                                     else if (e.key === 'Escape') setEditingRolePubId(null);
                                                                 }}
-                                                                className="p-1 text-[11px] rounded border border-slate-300 outline-none focus:ring-1 focus:ring-indigo-400 font-medium text-slate-800 w-32"
+                                                                className="px-2 py-1 text-[11px] rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500/20 font-medium text-slate-800 w-32"
                                                                 autoFocus
                                                             />
                                                         )}
                                                         <button 
                                                             onClick={() => handleSavePublisherRole(row, editingRoleValue)}
-                                                            className="p-1 text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
+                                                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors cursor-pointer"
                                                             title="Guardar nombramiento"
                                                         >
-                                                            <i className="fas fa-check text-xs"></i>
+                                                            <Check className="w-3.5 h-3.5" />
                                                         </button>
                                                         {isCustomRole && (
                                                             <button 
@@ -1066,65 +1136,77 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                                                                     setIsCustomRole(false);
                                                                     setEditingRoleValue('Publicador');
                                                                 }}
-                                                                className="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                                                                className="p-1 text-slate-400 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
                                                                 title="Volver a lista"
                                                             >
-                                                                <i className="fas fa-list text-xs"></i>
+                                                                <Layers className="w-3.5 h-3.5" />
                                                             </button>
                                                         )}
                                                         <button 
                                                             onClick={() => setEditingRolePubId(null)}
-                                                            className="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                                                            className="p-1 text-slate-400 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
                                                             title="Cancelar"
                                                         >
-                                                            <i className="fas fa-times text-xs"></i>
+                                                            <X className="w-3.5 h-3.5" />
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <div className="flex items-center gap-1.5 mt-1">
-                                                        <span className="text-[11px] text-indigo-700 font-bold uppercase tracking-wider bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{row.role}</span>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${getRoleBadge(row.role || 'Publicador')}`}>
+                                                            {row.role || 'Publicador'}
+                                                        </span>
                                                         <button 
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setEditingRolePubId(row.publisher.id);
                                                                 setEditingRoleValue(row.role || 'Publicador');
                                                                 setIsCustomRole(!['Publicador', 'Anciano', 'Siervo ministerial', 'Precursor Regular', 'Precursor Especial', 'Precursor Auxiliar', 'Inactivo'].includes(row.role || 'Publicador'));
-                                                            }}
-                                                            className="p-1 text-indigo-500 hover:text-indigo-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                              }}
+                                                            className="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors cursor-pointer"
                                                             title="Editar Nombramiento o Estado"
                                                         >
-                                                            <i className="fas fa-pen text-[9px]"></i>
+                                                            <Edit2 className="w-2.5 h-2.5" />
                                                         </button>
                                                     </div>
                                                 )
                                             ) : (
-                                                <div className="text-[11px] text-slate-500 font-medium uppercase tracking-wider">{row.role}</div>
+                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${getRoleBadge(role)}`}>
+                                                        {role}
+                                                    </span>
+                                                </div>
                                             )}
                                         </div>
                                     </td>
-                                    <td className="p-4 text-slate-800 align-middle border-b border-r border-slate-200">
+                                    <td className="py-3.5 px-5 text-slate-800 dark:text-slate-200 align-middle border-r border-slate-100 dark:border-slate-800/60">
                                         <div className="flex items-center justify-between gap-4">
-                                            <div className="flex text-[11px] sm:text-xs text-slate-600 font-medium gap-2 items-center shrink-0">
-                                                <i className="fas fa-phone-alt text-slate-400"></i> 
+                                            <div className="flex text-xs text-slate-600 dark:text-slate-400 font-semibold gap-2 items-center shrink-0">
+                                                <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
+                                                    <Phone className="w-3 h-3" />
+                                                </div>
                                                 <span>{row.publisher.telefono_personal || row.publisher.contacto_emergencia || '--'}</span>
                                             </div>
                                             
                                             {pStats && (
-                                                <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] border ${(pStats.diff >= 0 || pStats.isExempt) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                                                    <span className="font-bold text-slate-600 uppercase tracking-wide hidden sm:inline">Horas:</span>
-                                                    <span className="font-bold font-mono text-[11px] sm:text-[12px]">{pStats.actual.toFixed(1)} {pStats.isExempt ? '' : `/ ${pStats.expected.toFixed(1)}`}</span>
+                                                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold border shadow-2xs ${(pStats.diff >= 0 || pStats.isExempt) ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60' : 'bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60'}`}>
+                                                    <span className="text-[10px] text-slate-500 uppercase tracking-wider hidden sm:inline">HORAS:</span>
+                                                    <span className="font-mono text-xs">{pStats.actual.toFixed(1)} {pStats.isExempt ? '' : `/ ${pStats.expected.toFixed(1)}`}</span>
                                                     {pStats.isExempt ? (
-                                                        <span className="font-bold text-emerald-600">Eximido <i className="fas fa-check-circle"></i></span>
+                                                        <span className="font-bold text-emerald-600 flex items-center gap-1">Eximido <CheckCircle2 className="w-3 h-3 inline" /></span>
                                                     ) : pStats.diff < 0 ? (
-                                                        <span className="font-bold text-rose-600" title={`Faltan ${Math.abs(pStats.diff).toFixed(1)} horas según la meta acumulada actual`}>(-{Math.abs(pStats.diff).toFixed(1)}) <i className="fas fa-arrow-down"></i></span>
+                                                        <span className="font-bold text-rose-600 flex items-center gap-0.5" title={`Faltan ${Math.abs(pStats.diff).toFixed(1)} horas según la meta acumulada actual`}>
+                                                            (-{Math.abs(pStats.diff).toFixed(1)}) <ArrowDown className="w-3 h-3 inline stroke-[2.5]" />
+                                                        </span>
                                                     ) : (
-                                                        <span className="font-bold text-emerald-600">({pStats.diff > 0 ? '+' : ''}{pStats.diff.toFixed(1)}) <i className="fas fa-arrow-up"></i></span>
+                                                        <span className="font-bold text-emerald-600 flex items-center gap-0.5">
+                                                            ({pStats.diff > 0 ? '+' : ''}{pStats.diff.toFixed(1)}) <ArrowUp className="w-3 h-3 inline stroke-[2.5]" />
+                                                        </span>
                                                     )}
                                                 </div>
                                             )}
                                         </div>
                                     </td>
-                                    <td className="p-4 align-middle text-center border-b border-slate-200">
+                                    <td className="py-3.5 px-5 align-middle text-center">
                                         <div className="flex gap-2 items-center justify-center">
                                             {isEditMode ? (
                                                 <>
@@ -1132,7 +1214,7 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                                                         value={row.currentGroupId}
                                                         onChange={(e) => handleGroupChange(row.publisher.id, row.publisher.nombre, row.memberId, e.target.value)}
                                                         disabled={updating === row.publisher.nombre}
-                                                        className={`p-1.5 rounded-md border border-slate-300 text-[10px] sm:text-xs cursor-pointer focus:ring-1 focus:ring-indigo-400 font-semibold max-w-[120px] sm:max-w-none ${row.currentGroupId === 'unassigned' ? 'bg-red-50 text-red-800' : row.currentGroupId === 'estudiante_vmt' ? 'bg-sky-50 text-sky-800' : 'bg-white text-slate-700'}`}
+                                                        className={`px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 text-xs cursor-pointer focus:ring-2 focus:ring-blue-500/20 font-bold max-w-[130px] sm:max-w-none ${row.currentGroupId === 'unassigned' ? 'bg-rose-50 text-rose-800' : row.currentGroupId === 'estudiante_vmt' ? 'bg-sky-50 text-sky-800' : 'bg-white text-slate-800'}`}
                                                     >
                                                         <option value="unassigned">-- Sin Grupo --</option>
                                                         <option value="estudiante_vmt">-- Escuela VMT --</option>
@@ -1143,15 +1225,15 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                                                     <button
                                                         onClick={() => handleDeletePublisher(row.publisher.id, row.publisher.nombre)}
                                                         disabled={updating === row.publisher.nombre}
-                                                        className="p-1.5 rounded-md text-slate-400 hover:text-red-600 border border-transparent hover:border-red-200 hover:bg-red-50 transition-all shrink-0"
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all shrink-0 cursor-pointer"
                                                         style={{ opacity: updating === row.publisher.nombre ? 0.5 : 1 }}
                                                         title="Eliminar publicador"
                                                     >
-                                                        <i className="fas fa-trash"></i>
+                                                        <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </>
                                             ) : (
-                                                <span className={`px-2 py-1 rounded text-[10px] sm:text-[11px] font-bold border ${row.currentGroupId === 'unassigned' ? 'bg-red-50 border-red-200 text-red-700' : row.currentGroupId === 'estudiante_vmt' ? 'bg-sky-50 border-sky-200 text-sky-700' : 'bg-slate-100 border-slate-300 text-slate-700'}`}>
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold border shadow-2xs ${row.currentGroupId === 'unassigned' ? 'bg-rose-50 border-rose-200 text-rose-700' : row.currentGroupId === 'estudiante_vmt' ? 'bg-sky-50 border-sky-200 text-sky-700' : 'bg-slate-100 border-slate-200/90 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'}`}>
                                                     {row.currentGroupId === 'unassigned' ? 'Sin Grupo' : 
                                                      row.currentGroupId === 'estudiante_vmt' ? 'Escuela VMT' : 
                                                      groups.find(g => g.id === row.currentGroupId)?.nombre || 'Desconocido'}
@@ -1162,138 +1244,145 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                                 </tr>
                             );
                         })}
-        {data.length === 0 && (
-            <tr>
-                <td colSpan={3} className="p-8 text-center text-slate-400">
-                    <div className="flex flex-col items-center gap-3">
-                        <i className="fas fa-search text-3xl text-slate-300"></i>
-                        <span>No se encontraron publicadores con ese nombre.</span>
-                    </div>
-                </td>
-            </tr>
-        )}
-    </tbody>
-</table>
-</div>
-
-{/* MOBILE CARD VIEW */}
-<div className="md:hidden mt-6 flex flex-col gap-4">
-    {data.map((row, idx) => {
-        const pStats = row.pStats;
-        
-        return (
-            <div key={idx} className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden ${updating === row.publisher.nombre ? 'ring-2 ring-amber-400 bg-amber-50' : ''}`}>
-                <div 
-                    className={`p-4 border-b border-slate-100 ${(!isEditMode && onSelectPublisher) ? 'cursor-pointer' : ''}`}
-                    onClick={() => !isEditMode && onSelectPublisher && onSelectPublisher(row.publisher.nombre)}
-                >
-                    <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap font-bold text-base text-slate-800">
-                                <span>{row.publisher.nombre_completo || row.publisher.nombre}</span>
-                                {!isEditMode && onSelectPublisher && <i className="fas fa-external-link-alt text-[0.7rem] text-slate-400"></i>}
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mt-1">{row.role}</div>
-                        </div>
-                        {isEditMode && (
-                            <div className="flex gap-1 shrink-0 ml-2">
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingPubId(row.publisher.id);
-                                        setEditingPubValue(row.publisher.nombre_completo || row.publisher.nombre || '');
-                                        // A simple prompt is easier on mobile than complex inline inputs
-                                        const newName = window.prompt("Editar Nombre Completo:", row.publisher.nombre_completo || row.publisher.nombre || '');
-                                        if (newName !== null && newName.trim() !== '') {
-                                            handleSavePublisherNameCompleto(row.publisher.id, newName);
-                                        }
-                                    }}
-                                    className="w-7 h-7 flex items-center justify-center text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                                >
-                                    <i className="fas fa-pen text-[10px]"></i>
-                                </button>
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        const newRole = window.prompt("Editar Nombramiento (Publicador, Anciano, Siervo ministerial, Precursor Regular...):", row.role || 'Publicador');
-                                        if (newRole !== null && newRole.trim() !== '') {
-                                            handleSavePublisherRole(row, newRole);
-                                        }
-                                    }}
-                                    className="w-7 h-7 flex items-center justify-center text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-                                >
-                                    <i className="fas fa-id-badge text-[10px]"></i>
-                                </button>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeletePublisher(row.publisher.id, row.publisher.nombre);
-                                    }}
-                                    disabled={updating === row.publisher.nombre}
-                                    className="w-7 h-7 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                                >
-                                    <i className="fas fa-trash text-[10px]"></i>
-                                </button>
-                            </div>
+                        {data.length === 0 && (
+                            <tr>
+                                <td colSpan={3} className="p-8 text-center text-slate-400">
+                                    <div className="flex flex-col items-center gap-3">
+                                        <Search className="w-8 h-8 text-slate-300 stroke-[1.5]" />
+                                        <span className="text-sm font-medium">No se encontraron publicadores con ese criterio.</span>
+                                    </div>
+                                </td>
+                            </tr>
                         )}
-                    </div>
+                    </tbody>
+                </table>
+            </div>
+
+            {/* MOBILE CARD VIEW - iOS Style */}
+            <div className="md:hidden mt-6 flex flex-col gap-3.5">
+                {data.map((row, idx) => {
+                    const pStats = row.pStats;
+                    const role = row.role || 'Publicador';
                     
-                    <div className="flex items-center gap-2 text-xs text-slate-600 mb-2">
-                        <i className="fas fa-phone-alt text-slate-400"></i> 
-                        <span>{row.publisher.telefono_personal || row.publisher.contacto_emergencia || '--'}</span>
-                    </div>
+                    return (
+                        <div key={idx} className={`bg-white dark:bg-slate-900 rounded-2xl shadow-xs border border-slate-200/90 dark:border-slate-800 overflow-hidden ${updating === row.publisher.nombre ? 'ring-2 ring-amber-400 bg-amber-50/50' : ''}`}>
+                            <div 
+                                className={`p-4 border-b border-slate-100 dark:border-slate-800/80 ${(!isEditMode && onSelectPublisher) ? 'cursor-pointer' : ''}`}
+                                onClick={() => !isEditMode && onSelectPublisher && onSelectPublisher(row.publisher.nombre)}
+                            >
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap font-bold text-sm sm:text-base text-slate-900 dark:text-white">
+                                            <span>{row.publisher.nombre_completo || row.publisher.nombre}</span>
+                                            {!isEditMode && onSelectPublisher && <ExternalLink className="w-3 h-3 text-slate-400" />}
+                                        </div>
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mt-0.5">
+                                            {role}
+                                        </div>
+                                    </div>
+                                    {isEditMode && (
+                                        <div className="flex items-center gap-1.5 shrink-0 ml-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingPubId(row.publisher.id);
+                                                    setEditingPubValue(row.publisher.nombre_completo || row.publisher.nombre || '');
+                                                    const newName = window.prompt("Editar Nombre Completo:", row.publisher.nombre_completo || row.publisher.nombre || '');
+                                                    if (newName !== null && newName.trim() !== '') {
+                                                        handleSavePublisherNameCompleto(row.publisher.id, newName);
+                                                    }
+                                                }}
+                                                className="w-8 h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors cursor-pointer shadow-2xs active:scale-95"
+                                                title="Editar Nombre"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <div className="w-px h-5 bg-slate-300 dark:bg-slate-600"></div>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const newRole = window.prompt("Editar Nombramiento (Publicador, Anciano, Siervo ministerial, Precursor Regular...):", row.role || 'Publicador');
+                                                    if (newRole !== null && newRole.trim() !== '') {
+                                                        handleSavePublisherRole(row, newRole);
+                                                    }
+                                                }}
+                                                className="w-8 h-8 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors cursor-pointer shadow-2xs active:scale-95"
+                                                title="Editar Nombramiento / Rol"
+                                            >
+                                                <Award className="w-4 h-4" />
+                                            </button>
+                                            <div className="w-px h-5 bg-slate-300 dark:bg-slate-600"></div>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeletePublisher(row.publisher.id, row.publisher.nombre);
+                                                }}
+                                                disabled={updating === row.publisher.nombre}
+                                                className="w-8 h-8 flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+                                                title="Eliminar Publicador"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 mb-2 font-medium">
+                                    <Phone className="w-3.5 h-3.5 text-slate-400" /> 
+                                    <span>{row.publisher.telefono_personal || row.publisher.contacto_emergencia || '--'}</span>
+                                </div>
 
-                    {pStats && (
-                        <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs border ${(pStats.diff >= 0 || pStats.isExempt) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                            <span className="font-bold text-slate-600 uppercase tracking-wide">Horas:</span>
-                            <span className="font-bold font-mono">{pStats.actual.toFixed(1)} {pStats.isExempt ? '' : `/ ${pStats.expected.toFixed(1)}`}</span>
-                            {pStats.isExempt ? (
-                                <span className="font-bold text-emerald-600 ml-1">Eximido <i className="fas fa-check-circle"></i></span>
-                            ) : pStats.diff < 0 ? (
-                                <span className="font-bold text-rose-600 ml-1">(-{Math.abs(pStats.diff).toFixed(1)}) <i className="fas fa-arrow-down"></i></span>
-                            ) : (
-                                <span className="font-bold text-emerald-600 ml-1">({pStats.diff > 0 ? '+' : ''}{pStats.diff.toFixed(1)}) <i className="fas fa-arrow-up"></i></span>
-                            )}
+                                {pStats && (
+                                    <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border ${(pStats.diff >= 0 || pStats.isExempt) ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                                        <span className="text-[10px] text-slate-500 uppercase tracking-wide">HORAS:</span>
+                                        <span className="font-mono">{pStats.actual.toFixed(1)} {pStats.isExempt ? '' : `/ ${pStats.expected.toFixed(1)}`}</span>
+                                        {pStats.isExempt ? (
+                                            <span className="font-bold text-emerald-600 ml-1">Eximido <CheckCircle2 className="w-3 h-3 inline" /></span>
+                                        ) : pStats.diff < 0 ? (
+                                            <span className="font-bold text-rose-600 ml-1">(-{Math.abs(pStats.diff).toFixed(1)}) <ArrowDown className="w-3 h-3 inline" /></span>
+                                        ) : (
+                                            <span className="font-bold text-emerald-600 ml-1">({pStats.diff > 0 ? '+' : ''}{pStats.diff.toFixed(1)}) <ArrowUp className="w-3 h-3 inline" /></span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="p-3 bg-slate-50/80 dark:bg-slate-800/50 flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Grupo</span>
+                                {isEditMode ? (
+                                    <select 
+                                        value={row.currentGroupId}
+                                        onChange={(e) => handleGroupChange(row.publisher.id, row.publisher.nombre, row.memberId, e.target.value)}
+                                        disabled={updating === row.publisher.nombre}
+                                        className={`px-2 py-1 rounded-xl border border-slate-300 text-xs cursor-pointer focus:ring-2 focus:ring-blue-500/20 font-bold max-w-[150px] ${row.currentGroupId === 'unassigned' ? 'bg-rose-50 text-rose-800' : row.currentGroupId === 'estudiante_vmt' ? 'bg-sky-50 text-sky-800' : 'bg-white text-slate-800'}`}
+                                    >
+                                        <option value="unassigned">-- Sin Grupo --</option>
+                                        <option value="estudiante_vmt">-- Escuela --</option>
+                                        {groups.map(g => (
+                                            <option key={g.id} value={g.id}>{g.nombre}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${row.currentGroupId === 'unassigned' ? 'bg-rose-50 border-rose-200 text-rose-700' : row.currentGroupId === 'estudiante_vmt' ? 'bg-sky-50 border-sky-200 text-sky-700' : 'bg-white border-slate-200 text-slate-700 shadow-2xs'}`}>
+                                        {row.currentGroupId === 'unassigned' ? 'Sin Grupo' : 
+                                         row.currentGroupId === 'estudiante_vmt' ? 'Escuela VMT' : 
+                                         groups.find(g => g.id === row.currentGroupId)?.nombre || 'Desconocido'}
+                                    </span>
+                                )}
+                            </div>
                         </div>
-                    )}
-                </div>
-                
-                <div className="p-3 bg-slate-50 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Grupo / Clasificación</span>
-                    {isEditMode ? (
-                        <select 
-                            value={row.currentGroupId}
-                            onChange={(e) => handleGroupChange(row.publisher.id, row.publisher.nombre, row.memberId, e.target.value)}
-                            disabled={updating === row.publisher.nombre}
-                            className={`p-1.5 rounded-md border border-slate-300 text-xs cursor-pointer focus:ring-1 focus:ring-indigo-400 font-bold max-w-[150px] ${row.currentGroupId === 'unassigned' ? 'bg-red-50 text-red-800' : row.currentGroupId === 'estudiante_vmt' ? 'bg-sky-50 text-sky-800' : 'bg-white text-slate-700'}`}
-                        >
-                            <option value="unassigned">-- Sin Grupo --</option>
-                            <option value="estudiante_vmt">-- Escuela --</option>
-                            {groups.map(g => (
-                                <option key={g.id} value={g.id}>{g.nombre}</option>
-                            ))}
-                        </select>
-                    ) : (
-                        <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold border ${row.currentGroupId === 'unassigned' ? 'bg-red-50 border-red-200 text-red-700' : row.currentGroupId === 'estudiante_vmt' ? 'bg-sky-50 border-sky-200 text-sky-700' : 'bg-white border-slate-300 text-slate-700 shadow-sm'}`}>
-                            {row.currentGroupId === 'unassigned' ? 'Sin Grupo' : 
-                             row.currentGroupId === 'estudiante_vmt' ? 'Escuela VMT' : 
-                             groups.find(g => g.id === row.currentGroupId)?.nombre || 'Desconocido'}
-                        </span>
-                    )}
-                </div>
-            </div>
-        );
-    })}
+                    );
+                })}
 
-    {data.length === 0 && (
-        <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex flex-col items-center gap-3">
-                <i className="fas fa-search text-3xl text-slate-300"></i>
-                <span className="text-sm">No se encontraron publicadores con ese nombre.</span>
+                {data.length === 0 && (
+                    <div className="p-8 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-xs">
+                        <div className="flex flex-col items-center gap-3">
+                            <Search className="w-8 h-8 text-slate-300" />
+                            <span className="text-sm font-medium">No se encontraron publicadores con ese criterio.</span>
+                        </div>
+                    </div>
+                )}
             </div>
-        </div>
-    )}
-</div>
 
             {/* INLINE GROUPS MANAGEMENT MODAL */}
             {showGroupModal && (
@@ -1439,6 +1528,17 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                 initialRoleFilter={filterType}
                 filteredPublisherNames={data.map(d => d.publisher.nombre)}
             />
+
+            {previewModalData && (
+                <DocumentPreviewModal
+                    isOpen={previewModalData.isOpen}
+                    onClose={() => setPreviewModalData(null)}
+                    title={previewModalData.title}
+                    fileName={previewModalData.fileName}
+                    pagesHtml={previewModalData.pages || []}
+                    layoutLabel={previewModalData.layoutLabel}
+                />
+            )}
         </div>
     );
 };

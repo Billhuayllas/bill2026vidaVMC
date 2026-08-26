@@ -1,11 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
+import { 
+    Users, 
+    Calendar, 
+    Sparkles, 
+    ShieldCheck, 
+    Lock, 
+    ArrowLeft, 
+    Printer, 
+    FileDown, 
+    Edit3, 
+    Eye, 
+    Search, 
+    Check, 
+    SlidersHorizontal,
+    Award,
+    CalendarDays
+} from 'lucide-react';
 import { GroupMember, Publisher } from './types';
 import { supabase } from '../../lib/supabase';
 import { useCongregation } from '../../lib/CongregationContext';
 import GlobalPublishersList from './GlobalPublishersList';
 import { cleanNotes, isReportAuxiliar } from './utils';
 import { BulkCardsModal } from './BulkCardsModal';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { printHtmlDocument, downloadHtmlAsPdf } from './printUtils';
 
 declare const html2pdf: any;
 
@@ -416,6 +435,31 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
     const defaultServiceYear = currentMonthIndex >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear();
     const [serviceYear, setServiceYear] = useState<number>(defaultServiceYear);
 
+    const [previewModalData, setPreviewModalData] = useState<{
+        isOpen: boolean;
+        pages: string[];
+        title: string;
+        fileName: string;
+        layoutLabel?: string;
+    } | null>(null);
+
+    const handlePreviewCardPdf = () => {
+        if (!cardRef.current) return;
+        const contentHtml = cardRef.current.innerHTML;
+        const pageHtml = `
+            <div class="s21-card-page" style="width: 794px; min-height: 1080px; margin: 0 auto; background: #ffffff; color: #000000; padding: 24px 28px; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif;">
+                ${contentHtml}
+            </div>
+        `;
+        setPreviewModalData({
+            isOpen: true,
+            pages: [pageHtml],
+            title: `Registro de Publicador S-21 - ${pubDetails?.nombre || selectedPublisher}`,
+            fileName: `Registro_${selectedPublisher}_${serviceYear}.pdf`,
+            layoutLabel: 'Ficha Individual'
+        });
+    };
+
     // Helpers to support DD/MM/AAAA format conversion for display
     const sanitizeAndFormatDate = (val: string | undefined): string => {
         if (!val) return '';
@@ -747,6 +791,14 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
             finalRol = 'Publicador';
         }
         
+        if (!hasRole && (roleToToggle === 'Precursor Regular' || roleToToggle === 'Precursor Especial')) {
+            if (!pubDetails?.inicio_precursor_mes) {
+                const today = new Date();
+                const ym = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+                handleDetailChange('inicio_precursor_mes', ym);
+            }
+        }
+        
         updateMemberRole(globalMemberDetails.id, finalRol);
     };
 
@@ -1006,92 +1058,100 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                         </h2>
                     </div>
                     {selectedPublisher && pubDetails && (
-                        <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0">
-                            <button
-                                onClick={() => {
-                                    setSelectedPublisher('');
-                                    setSearchQuery('');
-                                }}
-                                className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-transparent text-slate-600 border border-slate-300 rounded-lg font-semibold text-xs sm:text-sm hover:bg-slate-50 transition-colors whitespace-nowrap"
-                            >
-                                <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                                <span>Volver</span>
-                            </button>
-                            {!isReadOnly && (
+                        <div className="flex flex-col gap-3 w-full lg:w-auto mt-2 sm:mt-0">
+                            {/* Functional Group 1: Navigation & Edits */}
+                            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
                                 <button
                                     onClick={() => {
-                                        if (isEditMode) {
-                                            setIsEditMode(false);
-                                        } else {
-                                            const code = prompt('Ingrese la contraseña para edición (9803):');
-                                            if (code === '9803') {
-                                                setIsEditMode(true);
-                                            } else if (code !== null) {
-                                                alert('Contraseña incorrecta');
-                                            }
-                                        }
+                                        setSelectedPublisher('');
+                                        setSearchQuery('');
                                     }}
-                                    className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-white rounded-lg font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap ${isEditMode ? 'bg-emerald-600 shadow-[0_4px_6px_-1px_rgba(5,150,105,0.2)]' : 'bg-slate-600 shadow-[0_4px_6px_-1px_rgba(71,85,105,0.2)]'}`}
-                                    onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-                                    onMouseUp={(e) => e.currentTarget.style.transform = 'none'}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl font-bold text-xs sm:text-sm transition-colors whitespace-nowrap active:scale-95 cursor-pointer"
                                 >
-                                    {isEditMode ? (
-                                        <>
-                                            <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><polyline points="22 11.08 11.68 22 7.23 17.54"></polyline><path d="M22 4L12 14.01l-3-3"></path></svg>
-                                            <span className="hidden sm:inline">Ver Ficha</span><span className="sm:hidden">Ver PDF</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                            <span className="hidden sm:inline">Modo Edición</span><span className="sm:hidden">Editar</span>
-                                        </>
-                                    )}
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                                    <span>Volver</span>
                                 </button>
-                            )}
-                            <button 
-                                onClick={() => {
-                                    window.print();
-                                }}
-                                className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 shadow-[0_4px_6px_-1px_rgba(37,99,235,0.2)] text-white rounded-lg font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap"
-                                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-                                onMouseUp={(e) => e.currentTarget.style.transform = 'none'}
-                            >
-                                <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                                <span className="hidden sm:inline">Imprimir Tarjeta</span><span className="sm:hidden">Imprimir</span>
-                            </button>
-                            <button
-                                onClick={handleDownloadPdf}
-                                className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-indigo-600 shadow-[0_4px_6px_-1px_rgba(79,70,229,0.2)] text-white rounded-lg font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap no-print"
-                                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-                                onMouseUp={(e) => e.currentTarget.style.transform = 'none'}
-                            >
-                                <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                </svg>
-                                <span>Descargar PDF</span>
-                            </button>
-                            <button
-                                onClick={handleDownloadPng}
-                                className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-emerald-600 shadow-[0_4px_6px_-1px_rgba(5,150,105,0.2)] text-white rounded-lg font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap no-print"
-                                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-                                onMouseUp={(e) => e.currentTarget.style.transform = 'none'}
-                            >
-                                <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                                <span>Descargar PNG</span>
-                            </button>
-                            <button
-                                onClick={() => setShowBulkModal(true)}
-                                className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-800 shadow-[0_4px_6px_-1px_rgba(30,41,59,0.2)] text-white rounded-lg font-semibold text-xs sm:text-sm transition-colors whitespace-nowrap no-print"
-                                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-                                onMouseUp={(e) => e.currentTarget.style.transform = 'none'}
-                            >
-                                <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                </svg>
-                                <span>Descarga Masiva</span>
-                            </button>
+                                {!isReadOnly && (
+                                    <button
+                                        onClick={() => {
+                                            if (isEditMode) {
+                                                setIsEditMode(false);
+                                            } else {
+                                                const code = prompt('Ingrese la contraseña para edición (9803):');
+                                                if (code === '9803') {
+                                                    setIsEditMode(true);
+                                                } else if (code !== null) {
+                                                    alert('Contraseña incorrecta');
+                                                }
+                                            }
+                                        }}
+                                        className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 text-white rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap active:scale-95 cursor-pointer border ${isEditMode ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-700 shadow-emerald-600/30' : 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-600 shadow-amber-500/25'}`}
+                                    >
+                                        {isEditMode ? (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4"><polyline points="22 11.08 11.68 22 7.23 17.54"></polyline><path d="M22 4L12 14.01l-3-3"></path></svg>
+                                                <span>Ver Ficha</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                <span>Modo Edición</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Divider line between control groups */}
+                            <div className="w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5"></div>
+
+                            {/* Functional Group 2: Document & Export Actions */}
+                            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
+                                <button
+                                    onClick={handlePreviewCardPdf}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap no-print cursor-pointer border border-indigo-700 shadow-sm shadow-indigo-600/30 active:scale-95 text-center"
+                                    title="Previsualizar documento PDF"
+                                >
+                                    <Eye className="w-4 h-4 shrink-0" strokeWidth={2.4} />
+                                    <span className="truncate">Previsualizar</span>
+                                </button>
+                                <button
+                                    onClick={handleDownloadPdf}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap no-print cursor-pointer border border-rose-700 shadow-sm shadow-rose-600/30 active:scale-95 text-center"
+                                >
+                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="truncate">Descargar PDF</span>
+                                </button>
+                                <button
+                                    onClick={handleDownloadPng}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap no-print cursor-pointer border border-emerald-700 shadow-sm shadow-emerald-600/30 active:scale-95 text-center"
+                                >
+                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    <span className="truncate">Descargar PNG</span>
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        window.print();
+                                    }}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap cursor-pointer border border-blue-700 shadow-sm shadow-blue-600/30 active:scale-95 text-center"
+                                >
+                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                    <span className="truncate">Imprimir</span>
+                                </button>
+                                <button
+                                    onClick={() => setShowBulkModal(true)}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap no-print cursor-pointer border border-slate-950 dark:border-white shadow-sm active:scale-95 text-center"
+                                >
+                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                    </svg>
+                                    <span className="truncate">Masivo (2 en 1)</span>
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -1178,106 +1238,187 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                                 REGISTRO DE PUBLICADOR DE LA CONGREGACIÓN
                             </h1>
 
-                            {/* Control Interno (No se imprime) */}
+                            {/* Control Interno (No se imprime) - Estilo iOS Elegante */}
                             <div className="no-print control-interno-panel" style={{ 
-                                backgroundColor: '#f8fafc', 
-                                border: '1.5px dashed #cbd5e1', 
-                                borderRadius: '10px', 
-                                padding: '10px 14px', 
-                                marginBottom: '16px', 
-                                color: '#1e293b' 
+                                background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', 
+                                border: '1px solid #e2e8f0', 
+                                borderRadius: '16px', 
+                                padding: '14px 16px', 
+                                marginBottom: '18px', 
+                                boxShadow: '0 4px 16px -2px rgba(0,0,0,0.03), 0 2px 4px -1px rgba(0,0,0,0.02)',
+                                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
                             }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                    <svg style={{ width: '16px', height: '16px', color: '#64748b' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                    </svg>
-                                    <span style={{ fontWeight: '700', fontSize: '8.5pt', textTransform: 'uppercase', color: '#475569', letterSpacing: '0.05em' }}>
-                                        Control Interno de la Congregación (Solo visible en pantalla)
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid rgba(226, 232, 240, 0.8)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div style={{ width: '22px', height: '22px', borderRadius: '6px', backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)' }}>
+                                            <Lock size={12} strokeWidth={2.5} />
+                                        </div>
+                                        <div>
+                                            <span style={{ fontWeight: '700', fontSize: '8pt', textTransform: 'uppercase', color: '#1e293b', letterSpacing: '0.04em' }}>
+                                                Control Interno de la Congregación
+                                            </span>
+                                            <span style={{ display: 'block', fontSize: '6.8pt', color: '#64748b', fontWeight: '500', marginTop: '-1px' }}>
+                                                Solo visible en pantalla (no se imprime en la tarjeta S-21)
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <span style={{ fontSize: '6.8pt', fontWeight: '700', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '9999px', backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe', letterSpacing: '0.03em' }}>
+                                        Ficha Digital
                                     </span>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }}>
                                     {/* Grupo al que pertenece */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <span style={{ fontSize: '7.5pt', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b' }}>Grupo al que pertenece:</span>
-                                        <span style={{ fontSize: '9.5pt', fontWeight: '600', color: '#0f172a' }}>
+                                    <div style={{ 
+                                        backgroundColor: '#ffffff', 
+                                        borderRadius: '12px', 
+                                        padding: '10px 12px', 
+                                        border: '1px solid #e2e8f0', 
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '4px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ width: '22px', height: '22px', borderRadius: '6px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+                                                <Users size={12} strokeWidth={2.5} />
+                                            </div>
+                                            <span style={{ fontSize: '7pt', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.03em' }}>Grupo Asignado</span>
+                                        </div>
+                                        <div style={{ fontSize: '9.5pt', fontWeight: '700', color: '#0f172a', paddingLeft: '28px' }}>
                                             {globalMembers.find(p => p.publicador_nombre.trim() === selectedPublisher.trim()) ? (
                                                 groups.find(g => g.id === globalMembers.find(p => p.publicador_nombre.trim() === selectedPublisher.trim())?.grupo_id)?.nombre || 'Sin Grupo asignado'
                                             ) : 'Sin Grupo asignado'}
-                                        </span>
+                                        </div>
                                     </div>
                                     
                                     {/* Edad del publicador */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <span style={{ fontSize: '7.5pt', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b' }}>Edad que tiene:</span>
-                                        <span style={{ fontSize: '9.5pt', fontWeight: '600', color: '#0f172a' }}>
+                                    <div style={{ 
+                                        backgroundColor: '#ffffff', 
+                                        borderRadius: '12px', 
+                                        padding: '10px 12px', 
+                                        border: '1px solid #e2e8f0', 
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '4px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ width: '22px', height: '22px', borderRadius: '6px', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9333ea' }}>
+                                                <CalendarDays size={12} strokeWidth={2.5} />
+                                            </div>
+                                            <span style={{ fontSize: '7pt', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.03em' }}>Edad del Publicador</span>
+                                        </div>
+                                        <div style={{ fontSize: '9.5pt', fontWeight: '700', color: '#0f172a', paddingLeft: '28px' }}>
                                             {calculateAge(pubDetails.fecha_nacimiento)}
-                                        </span>
+                                        </div>
                                     </div>
                                     
                                     {/* Mes y año de inicio de precursor regular */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <span style={{ fontSize: '7.5pt', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b' }}>Inicio Precursor Regular:</span>
-                                        {isEditMode ? (
-                                            <input 
-                                                type="month"
-                                                value={convertToYm(pubDetails.inicio_precursor_mes)}
-                                                onChange={e => handleDetailChange('inicio_precursor_mes', e.target.value)}
-                                                style={{ 
-                                                    fontSize: '9pt', 
-                                                    padding: '2px 6px', 
-                                                    borderRadius: '4px', 
-                                                    border: '1px solid #cbd5e1', 
-                                                    outline: 'none', 
-                                                    backgroundColor: 'white',
-                                                    color: '#000',
-                                                    fontWeight: '500',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box'
-                                                }}
-                                            />
-                                        ) : (
-                                            <span style={{ fontSize: '9.5pt', fontWeight: '600', color: '#0f172a' }}>
-                                                {formatYmToSpanish(pubDetails.inicio_precursor_mes)}
-                                            </span>
-                                        )}
-                                        {pubDetails.inicio_precursor_mes && calculateMonthsSince(pubDetails.inicio_precursor_mes) && (
-                                            <div style={{ fontSize: '7.5pt', color: '#16a34a', marginTop: '1px' }}>
-                                                Transcurrido: <strong style={{ fontWeight: 'bold' }}>{calculateMonthsSince(pubDetails.inicio_precursor_mes)}</strong>
+                                    <div style={{ 
+                                        backgroundColor: '#ffffff', 
+                                        borderRadius: '12px', 
+                                        padding: '10px 12px', 
+                                        border: '1px solid #e2e8f0', 
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '4px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ width: '22px', height: '22px', borderRadius: '6px', backgroundColor: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                                                <Sparkles size={12} strokeWidth={2.5} />
                                             </div>
-                                        )}
+                                            <span style={{ fontSize: '7pt', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.03em' }}>Inicio Precursor Regular</span>
+                                        </div>
+                                        <div style={{ paddingLeft: '28px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                <input 
+                                                    type="month"
+                                                    value={convertToYm(pubDetails.inicio_precursor_mes)}
+                                                    onChange={e => handleDetailChange('inicio_precursor_mes', e.target.value)}
+                                                    disabled={isReadOnly}
+                                                    style={{ 
+                                                        fontSize: '8.5pt', 
+                                                        padding: '3px 8px', 
+                                                        borderRadius: '8px', 
+                                                        border: '1px solid #cbd5e1', 
+                                                        outline: 'none', 
+                                                        backgroundColor: isReadOnly ? '#f8fafc' : '#ffffff',
+                                                        color: '#0f172a',
+                                                        fontWeight: '600',
+                                                        width: '100%',
+                                                        maxWidth: '135px',
+                                                        boxSizing: 'border-box',
+                                                        cursor: isReadOnly ? 'default' : 'pointer',
+                                                        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.03)'
+                                                    }}
+                                                />
+                                                {pubDetails.inicio_precursor_mes && (
+                                                    <span style={{ fontSize: '8pt', color: '#475569', fontWeight: '600' }}>
+                                                        ({formatYmToSpanish(pubDetails.inicio_precursor_mes)})
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {pubDetails.inicio_precursor_mes && calculateMonthsSince(pubDetails.inicio_precursor_mes) && (
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '7pt', color: '#047857', backgroundColor: '#ecfdf5', padding: '2px 8px', borderRadius: '6px', fontWeight: '600', width: 'fit-content' }}>
+                                                    <span>Transcurrido:</span>
+                                                    <strong>{calculateMonthsSince(pubDetails.inicio_precursor_mes)}</strong>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Mes y año de nombramiento de ministerial o anciano */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <span style={{ fontSize: '7.5pt', fontWeight: 'bold', textTransform: 'uppercase', color: '#64748b' }}>Nombramiento Ministerial / Anciano:</span>
-                                        {isEditMode ? (
-                                            <input 
-                                                type="date"
-                                                value={convertToYmd(pubDetails.fecha_nombramiento)}
-                                                onChange={e => handleDetailChange('fecha_nombramiento', e.target.value)}
-                                                style={{ 
-                                                    fontSize: '9pt', 
-                                                    padding: '2px 6px', 
-                                                    borderRadius: '4px', 
-                                                    border: '1px solid #cbd5e1', 
-                                                    outline: 'none', 
-                                                    backgroundColor: 'white',
-                                                    color: '#000',
-                                                    fontWeight: '500',
-                                                    width: '100%',
-                                                    boxSizing: 'border-box'
-                                                }}
-                                            />
-                                        ) : (
-                                            <span style={{ fontSize: '9.5pt', fontWeight: '600', color: '#0f172a' }}>
-                                                {pubDetails.fecha_nombramiento ? sanitizeAndFormatDate(pubDetails.fecha_nombramiento) : 'No especificado'}
-                                            </span>
-                                        )}
-                                        {pubDetails.fecha_nombramiento && calculateMonthsSince(pubDetails.fecha_nombramiento) && (
-                                            <div style={{ fontSize: '7.5pt', color: '#1e3a8a', marginTop: '1px' }}>
-                                                Transcurrido: <strong style={{ fontWeight: 'bold' }}>{calculateMonthsSince(pubDetails.fecha_nombramiento)}</strong>
+                                    <div style={{ 
+                                        backgroundColor: '#ffffff', 
+                                        borderRadius: '12px', 
+                                        padding: '10px 12px', 
+                                        border: '1px solid #e2e8f0', 
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '4px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ width: '22px', height: '22px', borderRadius: '6px', backgroundColor: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4f46e5' }}>
+                                                <ShieldCheck size={12} strokeWidth={2.5} />
                                             </div>
-                                        )}
+                                            <span style={{ fontSize: '7pt', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.03em' }}>Nombramiento Min. / Anciano</span>
+                                        </div>
+                                        <div style={{ paddingLeft: '28px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            {isEditMode ? (
+                                                <input 
+                                                    type="date"
+                                                    value={convertToYmd(pubDetails.fecha_nombramiento)}
+                                                    onChange={e => handleDetailChange('fecha_nombramiento', e.target.value)}
+                                                    style={{ 
+                                                        fontSize: '8.5pt', 
+                                                        padding: '3px 8px', 
+                                                        borderRadius: '8px', 
+                                                        border: '1px solid #cbd5e1', 
+                                                        outline: 'none', 
+                                                        backgroundColor: '#ffffff',
+                                                        color: '#0f172a',
+                                                        fontWeight: '600',
+                                                        width: '100%',
+                                                        maxWidth: '140px',
+                                                        boxSizing: 'border-box',
+                                                        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.03)'
+                                                    }}
+                                                />
+                                            ) : (
+                                                <span style={{ fontSize: '9.5pt', fontWeight: '600', color: '#0f172a' }}>
+                                                    {pubDetails.fecha_nombramiento ? sanitizeAndFormatDate(pubDetails.fecha_nombramiento) : 'No especificado'}
+                                                </span>
+                                            )}
+                                            {pubDetails.fecha_nombramiento && calculateMonthsSince(pubDetails.fecha_nombramiento) && (
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '7pt', color: '#1d4ed8', backgroundColor: '#eff6ff', padding: '2px 8px', borderRadius: '6px', fontWeight: '600', width: 'fit-content' }}>
+                                                    <span>Transcurrido:</span>
+                                                    <strong>{calculateMonthsSince(pubDetails.fecha_nombramiento)}</strong>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1477,6 +1618,14 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                                             ? `${serviceYear - 1}-${m.key}` 
                                             : `${serviceYear}-${m.key}`;
 
+                                        // Determine if publisher is pioneer for this specific month based on inicio_precursor_mes
+                                        const isRegularPioneer = pubStatusRow?.includes('Precursor Regular');
+                                        const isSpecialPioneer = pubStatusRow?.includes('Precursor Especial');
+                                        const isMissionary = pubStatusRow?.includes('Misionero');
+                                        const isPioneerRole = isRegularPioneer || isSpecialPioneer || isMissionary;
+                                        const startPioneerYm = pubDetails?.inicio_precursor_mes ? convertToYm(pubDetails.inicio_precursor_mes) : '';
+                                        const isPioneerInThisMonth = isPioneerRole && (!startPioneerYm || targetMonthString >= startPioneerYm);
+
                                         // Perform strict name-comparison to isolate this publisher's records perfectly
                                         const r = reports.find(report => {
                                             if (!report.mes) return false;
@@ -1542,7 +1691,10 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                                             notes = cleanNotes(rawNotes);
                                             
                                             const h = (Number(r.horas) || 0) + he;
-                                            if (h > 0) totalHours = String(h);
+                                            // On S-21 card, display hours only if the publisher was a pioneer in that month OR served as auxiliary pioneer
+                                            if ((isPioneerInThisMonth || hasAuxPrecursor) && h > 0) {
+                                                totalHours = String(h);
+                                            }
 
                                             const s = Number(r.estudios) || 0;
                                             if (s > 0) studies = String(s);
@@ -1583,24 +1735,37 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                                         </td>
                                         <td style={{ border: '1.5px solid #000', padding: '2px', textAlign: 'center', fontWeight: 'bold', fontSize: '9.5pt', color: '#000' }}>
                                             {(() => {
-                                                const tot = reports.reduce((acc, r) => {
-                                                    const rMonth = r.mes ? r.mes.split('-')[1] : '';
-                                                    const rYear = r.mes ? parseInt(r.mes.split('-')[0], 10) : 0;
-                                                    const expectedYear = rMonth === '09' || rMonth === '10' || rMonth === '11' || rMonth === '12' 
-                                                        ? serviceYear - 1 
-                                                        : serviceYear;
-                                                    
-                                                    const matchesName = r.publicador_nombre 
-                                                        ? r.publicador_nombre.trim().toLowerCase() === selectedPublisher.trim().toLowerCase()
-                                                        : false;
-                                                    
-                                                    if (rYear === expectedYear && matchesName) {
-                                                        let he = Number(r.horas_especiales) || 0;
-                                                        const matchHe = r.notas ? r.notas.match(/\{\{horas_especiales:(\d+)\}\}/) : null;
-                                                        if (matchHe) he = he || parseInt(matchHe[1], 10);
-                                                        const matchHe2 = r.notas ? r.notas.match(/\{\{he:(\d+)\}\}/) : null;
-                                                        if (matchHe2) he = he || parseInt(matchHe2[1], 10);
-                                                        return acc + (Number(r.horas) || 0) + he;
+                                                const isRegularPioneer = pubStatusRow?.includes('Precursor Regular');
+                                                const isSpecialPioneer = pubStatusRow?.includes('Precursor Especial');
+                                                const isMissionary = pubStatusRow?.includes('Misionero');
+                                                const isPioneerRole = isRegularPioneer || isSpecialPioneer || isMissionary;
+                                                const startPioneerYm = pubDetails?.inicio_precursor_mes ? convertToYm(pubDetails.inicio_precursor_mes) : '';
+
+                                                const tot = months.reduce((acc, m) => {
+                                                    const targetMonthString = m.key === '09' || m.key === '10' || m.key === '11' || m.key === '12' 
+                                                        ? `${serviceYear - 1}-${m.key}` 
+                                                        : `${serviceYear}-${m.key}`;
+                                                    const r = reports.find(report => {
+                                                        if (!report.mes) return false;
+                                                        const matchesMonth = report.mes.trim() === targetMonthString;
+                                                        const matchesName = report.publicador_nombre 
+                                                            ? report.publicador_nombre.trim().toLowerCase() === selectedPublisher.trim().toLowerCase()
+                                                            : false;
+                                                        return matchesMonth && matchesName;
+                                                    });
+                                                    if (r) {
+                                                        const isAux = isReportAuxiliar(r);
+                                                        const isPioneerMonth = isPioneerRole && (!startPioneerYm || targetMonthString >= startPioneerYm);
+                                                        if (isPioneerMonth || isAux) {
+                                                            let he = Number(r.horas_especiales) || 0;
+                                                            if (r.notas) {
+                                                                const matchHe = r.notas.match(/\{\{horas_especiales:(\d+)\}\}/);
+                                                                if (matchHe) he = he || parseInt(matchHe[1], 10);
+                                                                const matchHe2 = r.notas.match(/\{\{he:(\d+)\}\}/);
+                                                                if (matchHe2) he = he || parseInt(matchHe2[1], 10);
+                                                            }
+                                                            return acc + (Number(r.horas) || 0) + he;
+                                                        }
                                                     }
                                                     return acc;
                                                 }, 0);
@@ -1628,6 +1793,17 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                 globalMembers={globalMembers}
                 defaultServiceYear={defaultServiceYear}
             />
+
+            {previewModalData && (
+                <DocumentPreviewModal
+                    isOpen={previewModalData.isOpen}
+                    onClose={() => setPreviewModalData(null)}
+                    title={previewModalData.title}
+                    fileName={previewModalData.fileName}
+                    pagesHtml={previewModalData.pages}
+                    layoutLabel={previewModalData.layoutLabel}
+                />
+            )}
         </div>
     );
 };

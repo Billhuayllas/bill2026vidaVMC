@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAllMinistryReports } from '../lib/supabasePagination';
 import { cleanNotes, isReportAuxiliar } from './congregation/utils';
 import { 
   Users, 
@@ -100,14 +101,7 @@ const SharedPublisherReport: React.FC<SharedPublisherReportProps> = ({ congregat
             const startMonth = `${serviceYear - 1}-09`;
             const endMonth = `${serviceYear}-08`;
 
-            const { data: reps, error: repsErr } = await supabase
-                .from('informes_ministerio')
-                .select('*')
-                .eq('congregation_id', congregationId)
-                .gte('mes', startMonth)
-                .lte('mes', endMonth);
-            
-            if (repsErr) throw repsErr;
+            const reps = await fetchAllMinistryReports(congregationId, startMonth, endMonth);
             setServiceYearReports(reps || []);
 
             // Automatically select first publisher for the Card View if available
@@ -144,8 +138,27 @@ const SharedPublisherReport: React.FC<SharedPublisherReportProps> = ({ congregat
         const curY = currentDate.getFullYear();
         const serviceYear = curM >= 9 ? curY + 1 : curY;
 
-        let startYm = startMonthRaw;
-        if (!startYm || !startYm.match(/^\d{4}-\d{2}$/)) {
+        let startYm = '';
+        if (startMonthRaw) {
+            const cleanStr = startMonthRaw.trim().toLowerCase();
+            if (/^\d{4}-\d{2}$/.test(cleanStr)) {
+                startYm = cleanStr;
+            } else {
+                const parts = cleanStr.split('-');
+                if (parts.length === 3 && parts[0].length === 4) {
+                    startYm = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+                } else {
+                    const dma = cleanStr.split('/');
+                    if (dma.length === 3 && dma[2].length === 4) {
+                        startYm = `${dma[2]}-${dma[1].padStart(2, '0')}`;
+                    } else if (dma.length === 2 && dma[1].length === 4) {
+                        startYm = `${dma[1]}-${dma[0].padStart(2, '0')}`;
+                    }
+                }
+            }
+        }
+        
+        if (!startYm) {
             startYm = `${serviceYear - 1}-09`; // Fallback to beginning of service year
         }
 

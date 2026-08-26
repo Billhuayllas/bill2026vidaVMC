@@ -197,15 +197,18 @@ const GrupoCongregacion: React.FC<GrupoCongregacionProps> = ({ isReadOnly = fals
 
     return (
         <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 relative min-h-[calc(100vh-80px)] transition-all">
-            {/* Top Navigation / Section Header */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
+            {/* Top Navigation / Section Header - iOS Style */}
+            <div 
+                className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200/80 dark:border-slate-800/80"
+                style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}
+            >
                 <div className="text-center sm:text-left">
                     <div className="flex items-center justify-center sm:justify-start gap-2.5">
                         <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                             Gestión de Grupo y Congregación
                         </h1>
                         {isReadOnly && (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 tracking-wide">
                                 Solo Lectura
                             </span>
                         )}
@@ -215,14 +218,14 @@ const GrupoCongregacion: React.FC<GrupoCongregacionProps> = ({ isReadOnly = fals
                     </p>
                 </div>
 
-                {/* Segmented View Switcher */}
-                <div className="inline-flex items-center bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-sm p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
+                {/* Segmented View Switcher - iOS Segmented Control */}
+                <div className="inline-flex items-center bg-slate-200/70 dark:bg-slate-800/90 backdrop-blur-md p-1 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-inner">
                     {(navItems.includes('Grupo de Congregación') || navItems.includes('↳ Mi Grupo') || restrictedGroupId) && (
                         <button 
                             onClick={() => setViewMode('single')}
-                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                                 viewMode === 'single' 
-                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm shadow-slate-900/5' 
                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                             }`}
                         >
@@ -233,9 +236,9 @@ const GrupoCongregacion: React.FC<GrupoCongregacionProps> = ({ isReadOnly = fals
                     {(navItems.includes('Grupo de Congregación') || navItems.includes('↳ Resumen General')) && !restrictedGroupId && (
                         <button 
                             onClick={() => setViewMode('global')}
-                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                                 viewMode === 'global' 
-                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm shadow-slate-900/5' 
                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                             }`}
                         >
@@ -247,9 +250,9 @@ const GrupoCongregacion: React.FC<GrupoCongregacionProps> = ({ isReadOnly = fals
                     {(navItems.includes('Grupo de Congregación') || navItems.includes('↳ Lista de Publicadores')) && (
                         <button 
                             onClick={() => setViewMode('cards')}
-                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                                 ['publishers', 'cards'].includes(viewMode) 
-                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm shadow-slate-900/5' 
                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                             }`}
                         >

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { fetchAllRows } from '../../lib/supabasePagination';
 import { cleanNotes, isReportAuxiliar } from './utils';
+import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { printHtmlDocument, downloadHtmlAsPdf } from './printUtils';
+import { Eye, Printer, Download, FileText, Loader2, X } from 'lucide-react';
 
-declare const html2pdf: any;
 
 interface BulkCardsModalProps {
     isOpen: boolean;
@@ -27,17 +30,26 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
 }) => {
     const [selectedGroupId, setSelectedGroupId] = useState<string>('todos');
     const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>(
-        filteredPublisherNames && filteredPublisherNames.length > 0 && initialRoleFilter !== 'todos'
+        filteredPublisherNames && filteredPublisherNames.length > 0
             ? 'actual'
             : (initialRoleFilter || 'todos')
     );
     const [serviceYear, setServiceYear] = useState<number>(defaultServiceYear);
+    const [cardsPerPage, setCardsPerPage] = useState<'2' | '1'>('2');
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const [statusMessage, setStatusMessage] = useState<string>('');
+    const [previewModalData, setPreviewModalData] = useState<{
+        isOpen: boolean;
+        pages: string[];
+        title: string;
+        fileName: string;
+        layoutLabel: string;
+    } | null>(null);
+
 
     useEffect(() => {
         if (isOpen) {
-            if (filteredPublisherNames && filteredPublisherNames.length > 0 && initialRoleFilter !== 'todos') {
+            if (filteredPublisherNames && filteredPublisherNames.length > 0) {
                 setSelectedRoleFilter('actual');
             } else if (initialRoleFilter && initialRoleFilter !== 'todos') {
                 setSelectedRoleFilter(initialRoleFilter);
@@ -71,6 +83,19 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
         return trimmed;
     };
 
+    const convertToYm = (val: string | undefined): string => {
+        if (!val) return '';
+        const cleanStr = val.trim().toLowerCase();
+        if (!cleanStr) return '';
+        if (/^\d{4}-\d{2}$/.test(cleanStr)) return cleanStr;
+        const parts = cleanStr.split('-');
+        if (parts.length === 3 && parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}`;
+        const dma = cleanStr.split('/');
+        if (dma.length === 3 && dma[2].length === 4) return `${dma[2]}-${dma[1].padStart(2, '0')}`;
+        if (dma.length === 2 && dma[1].length === 4) return `${dma[1]}-${dma[0].padStart(2, '0')}`;
+        return '';
+    };
+
     const months = [
         { key: '09', name: 'septiembre' },
         { key: '10', name: 'octubre' },
@@ -86,234 +111,301 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
         { key: '08', name: 'agosto' }
     ];
 
-    const generateCardsHtml = (publishersList: any[], allReports: any[]): string => {
-        const cardsHtml = publishersList.map(pub => {
-            const memberRow = globalMembers.find(m => m.publicador_nombre.trim().toLowerCase() === pub.nombre.trim().toLowerCase());
-            const role = (memberRow?.rol || 'Publicador').toLowerCase();
+    const generateSingleCardHtml = (pub: any, allReports: any[], isTwoInOne = true): string => {
+        const memberRow = globalMembers.find(m => m.publicador_nombre.trim().toLowerCase() === pub.nombre.trim().toLowerCase());
+        const role = (memberRow?.rol || 'Publicador').toLowerCase();
 
-            const isElder = role.includes('anciano');
-            const isMS = role.includes('siervo ministerial') || role.includes('siervo');
-            const isRegularPioneer = role.includes('precursor regular');
-            const isSpecialPioneer = role.includes('precursor especial');
-            const isMissionary = role.includes('misionero');
+        const isElder = role.includes('anciano');
+        const isMS = role.includes('siervo ministerial') || role.includes('siervo');
+        const isRegularPioneer = role.includes('precursor regular');
+        const isSpecialPioneer = role.includes('precursor especial');
+        const isMissionary = role.includes('misionero');
+        const isPioneerRole = isRegularPioneer || isSpecialPioneer || isMissionary;
+        const startPioneerYm = pub.inicio_precursor_mes ? convertToYm(pub.inicio_precursor_mes) : '';
 
-            const isMale = pub.genero === 'Hombre' || (!pub.genero && (isElder || isMS));
-            const isFemale = pub.genero === 'Mujer';
-            const isAnointed = pub.esperanza === 'Ungido';
-            const isOtherSheep = !isAnointed;
+        const isMale = pub.genero === 'Hombre' || (!pub.genero && (isElder || isMS));
+        const isFemale = pub.genero === 'Mujer';
+        const isAnointed = pub.esperanza === 'Ungido';
+        const isOtherSheep = !isAnointed;
 
-            const birthDate = sanitizeAndFormatDate(pub.fecha_nacimiento);
-            const baptismDate = sanitizeAndFormatDate(pub.fecha_bautismo);
+        const birthDate = sanitizeAndFormatDate(pub.fecha_nacimiento);
+        const baptismDate = sanitizeAndFormatDate(pub.fecha_bautismo);
 
-            // Filter reports for this publisher
-            const pubReports = allReports.filter(r => 
-                r.publicador_nombre && r.publicador_nombre.trim().toLowerCase() === pub.nombre.trim().toLowerCase()
-            );
+        // Filter reports for this publisher
+        const pubReports = allReports.filter(r => 
+            r.publicador_nombre && r.publicador_nombre.trim().toLowerCase() === pub.nombre.trim().toLowerCase()
+        );
 
-            let totalAnnualHours = 0;
+        let totalAnnualHours = 0;
 
-            const monthRows = months.map(m => {
-                const targetYm = m.key === '09' || m.key === '10' || m.key === '11' || m.key === '12'
-                    ? `${serviceYear - 1}-${m.key}`
-                    : `${serviceYear}-${m.key}`;
+        const monthRows = months.map(m => {
+            const targetYm = m.key === '09' || m.key === '10' || m.key === '11' || m.key === '12'
+                ? `${serviceYear - 1}-${m.key}`
+                : `${serviceYear}-${m.key}`;
 
-                const r = pubReports.find(report => report.mes && report.mes.trim() === targetYm);
+            const isPioneerInThisMonth = isPioneerRole && (!startPioneerYm || targetYm >= startPioneerYm);
+            const r = pubReports.find(report => report.mes && report.mes.trim() === targetYm);
 
-                let participo = false;
-                let studies = '';
-                let hasAuxPrecursor = false;
-                let hoursStr = '';
-                let cleanNote = '';
+            let participo = false;
+            let studies = '';
+            let hasAuxPrecursor = false;
+            let hoursStr = '';
+            let cleanNote = '';
 
-                if (r) {
-                    if (r.participo !== undefined) {
-                        participo = r.participo;
-                    } else if (r.notas) {
-                        const matchPart = r.notas.match(/\{\{participo:(true|false)\}\}/);
-                        if (matchPart) {
-                            participo = matchPart[1] === 'true';
-                        } else {
-                            participo = true;
-                        }
+            if (r) {
+                if (r.participo !== undefined) {
+                    participo = r.participo;
+                } else if (r.notas) {
+                    const matchPart = r.notas.match(/\{\{participo:(true|false)\}\}/);
+                    if (matchPart) {
+                        participo = matchPart[1] === 'true';
                     } else {
                         participo = true;
                     }
-
-                    hasAuxPrecursor = isReportAuxiliar(r);
-
-                    let rawNotes = r.notas || '';
-                    let he = Number(r.horas_especiales) || 0;
-                    const matchHe = rawNotes.match(/\{\{horas_especiales:(\d+)\}\}/);
-                    if (matchHe) he = he || parseInt(matchHe[1], 10);
-                    const matchHe2 = rawNotes.match(/\{\{he:(\d+)\}\}/);
-                    if (matchHe2) he = he || parseInt(matchHe2[1], 10);
-
-                    cleanNote = cleanNotes(rawNotes);
-
-                    const h = (Number(r.horas) || 0) + he;
-                    if (h > 0) {
-                        hoursStr = String(h);
-                        totalAnnualHours += h;
-                    }
-
-                    const s = Number(r.estudios) || 0;
-                    if (s > 0) studies = String(s);
+                } else {
+                    participo = true;
                 }
 
-                return `
-                    <tr style="height: 25px;">
-                        <td style="border: 1.5px solid #000; padding: 2px 6px; font-size: 9pt; font-weight: normal; text-transform: capitalize; color: #000;">
-                            ${m.name}
-                        </td>
-                        <td style="border: 1.5px solid #000; padding: 1px; text-align: center;">
-                            <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">
-                                ${participo ? '✓' : ''}
-                            </span>
-                        </td>
-                        <td style="border: 1.5px solid #000; padding: 1px; text-align: center; font-size: 9pt; font-weight: normal; color: #000;">
-                            ${studies}
-                        </td>
-                        <td style="border: 1.5px solid #000; padding: 1px; text-align: center;">
-                            <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">
-                                ${hasAuxPrecursor ? '✓' : ''}
-                            </span>
-                        </td>
-                        <td style="border: 1.5px solid #000; padding: 1px; text-align: center; font-size: 9pt; font-weight: normal; color: #000;">
-                            ${hoursStr}
-                        </td>
-                        <td style="border: 1.5px solid #000; padding: 2px 6px; font-size: 8.5pt; color: #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                            ${cleanNote}
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+                hasAuxPrecursor = isReportAuxiliar(r);
+
+                let rawNotes = r.notas || '';
+                let he = Number(r.horas_especiales) || 0;
+                const matchHe = rawNotes.match(/\{\{horas_especiales:(\d+)\}\}/);
+                if (matchHe) he = he || parseInt(matchHe[1], 10);
+                const matchHe2 = rawNotes.match(/\{\{he:(\d+)\}\}/);
+                if (matchHe2) he = he || parseInt(matchHe2[1], 10);
+
+                cleanNote = cleanNotes(rawNotes);
+
+                const h = (Number(r.horas) || 0) + he;
+                if ((isPioneerInThisMonth || hasAuxPrecursor) && h > 0) {
+                    hoursStr = String(h);
+                    totalAnnualHours += h;
+                }
+
+                const s = Number(r.estudios) || 0;
+                if (s > 0) studies = String(s);
+            }
+
+            const rowHeight = isTwoInOne ? '15.5px' : '24px';
+            const tdFontSize = isTwoInOne ? '7pt' : '9pt';
+            const noteFontSize = isTwoInOne ? '6.5pt' : '8.5pt';
+            const checkSize = isTwoInOne ? '10px' : '13px';
+            const checkFont = isTwoInOne ? '8px' : '11px';
 
             return `
-                <div class="s21-card-page" style="width: 100%; max-width: 780px; margin: 0 auto; background: #fff; color: #000; padding: 24px 28px; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; page-break-after: always; break-after: page;">
-                    <!-- Title -->
-                    <h1 style="text-align: center; font-size: 13.5pt; font-weight: bold; margin: 0 0 16px 0; text-transform: uppercase; letter-spacing: 0.02em; color: #000; font-family: Arial, Helvetica, sans-serif;">
-                        REGISTRO DE PUBLICADOR DE LA CONGREGACIÓN
-                    </h1>
-
-                    <!-- Header Details Grid -->
-                    <div style="margin-bottom: 12px; font-size: 9.5pt; color: #000;">
-                        <!-- Row 1: Nombre -->
-                        <div style="display: flex; align-items: flex-end; margin-bottom: 6px;">
-                            <span style="font-weight: bold; min-width: 70px;">Nombre:</span>
-                            <span style="flex: 1; border-bottom: 1px solid #000; padding-left: 6px; padding-bottom: 1px; font-weight: bold; font-size: 10pt; color: #000;">${pub.nombre}</span>
-                        </div>
-
-                        <!-- Row 2: Fecha de nacimiento and Género -->
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                            <div style="display: flex; align-items: flex-end; flex: 1; max-width: 58%;">
-                                <span style="font-weight: bold; min-width: 155px; white-space: nowrap;">Fecha de nacimiento:</span>
-                                <span style="flex: 1; border-bottom: 1px solid #000; padding-left: 6px; padding-bottom: 1px; font-weight: normal;">${birthDate}</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 20px; min-width: 220px; justify-content: flex-start; padding-left: 24px;">
-                                <label style="display: flex; align-items: center; gap: 6px;">
-                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">${isMale ? '✓' : ''}</span>
-                                    <span style="font-weight: normal;">Hombre</span>
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 6px;">
-                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">${isFemale ? '✓' : ''}</span>
-                                    <span style="font-weight: normal;">Mujer</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Row 3: Fecha de bautismo and Esperanza -->
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                            <div style="display: flex; align-items: flex-end; flex: 1; max-width: 58%;">
-                                <span style="font-weight: bold; min-width: 155px; white-space: nowrap;">Fecha de bautismo:</span>
-                                <span style="flex: 1; border-bottom: 1px solid #000; padding-left: 6px; padding-bottom: 1px; font-weight: normal;">${baptismDate}</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 20px; min-width: 220px; justify-content: flex-start; padding-left: 24px;">
-                                <label style="display: flex; align-items: center; gap: 6px;">
-                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">${isOtherSheep ? '✓' : ''}</span>
-                                    <span style="font-weight: normal;">Otras ovejas</span>
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 6px;">
-                                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">${isAnointed ? '✓' : ''}</span>
-                                    <span style="font-weight: normal;">Ungido</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Row 4: Privileges Row -->
-                        <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-top: 6px; margin-bottom: 8px; font-size: 8.8pt;">
-                            <label style="display: flex; align-items: center; gap: 6px;">
-                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">${isElder ? '✓' : ''}</span>
-                                <span style="font-weight: normal;">Anciano</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 6px;">
-                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">${isMS ? '✓' : ''}</span>
-                                <span style="font-weight: normal;">Siervo ministerial</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 6px;">
-                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">${isRegularPioneer ? '✓' : ''}</span>
-                                <span style="font-weight: normal;">Precursor regular</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 6px;">
-                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1;">${isSpecialPioneer ? '✓' : ''}</span>
-                                <span style="font-weight: normal;">Precursor especial</span>
-                            </label>
-                            <label style="display: flex; align-items: flex-start; gap: 6px; line-height: 1.15;">
-                                <span style="display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border: 1.2px solid #000; background-color: #fff; font-size: 11px; font-weight: bold; line-height: 1; margin-top: 1px;">${isMissionary ? '✓' : ''}</span>
-                                <span style="font-weight: normal;">Misionero que sirve<br />en el campo</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Annual Service Table -->
-                    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #000; table-layout: fixed; font-family: Arial, Helvetica, sans-serif;">
-                        <thead>
-                            <tr style="background-color: #ffffff; height: 42px;">
-                                <th style="border: 1.5px solid #000; padding: 4px 6px; width: 16%; text-align: left; font-weight: bold; font-size: 8.5pt; color: #000;">
-                                    Año de servicio
-                                </th>
-                                <th style="border: 1.5px solid #000; padding: 4px 2px; width: 18%; text-align: center; font-weight: bold; font-size: 8pt; color: #000; line-height: 1.15;">
-                                    Participación<br />en el<br />ministerio
-                                </th>
-                                <th style="border: 1.5px solid #000; padding: 4px 2px; width: 12%; text-align: center; font-weight: bold; font-size: 8pt; color: #000; line-height: 1.15;">
-                                    Cursos<br />bíblicos
-                                </th>
-                                <th style="border: 1.5px solid #000; padding: 4px 2px; width: 13%; text-align: center; font-weight: bold; font-size: 8pt; color: #000; line-height: 1.15;">
-                                    Precursor<br />auxiliar
-                                </th>
-                                <th style="border: 1.5px solid #000; padding: 4px 2px; width: 17%; text-align: center; font-weight: bold; font-size: 8pt; color: #000; line-height: 1.15;">
-                                    Horas<br />
-                                    <span style="font-size: 6.5pt; font-weight: normal; display: block; line-height: 1.05;">(Si es precursor o<br />misionero que<br />sirve en el campo)</span>
-                                </th>
-                                <th style="border: 1.5px solid #000; padding: 4px 6px; width: 24%; text-align: center; font-weight: bold; font-size: 8pt; color: #000;">
-                                    Notas
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${monthRows}
-                        </tbody>
-                        <tfoot>
-                            <tr style="height: 27px;">
-                                <td colspan="4" style="border: 1.5px solid #000; padding: 3px 8px; text-align: right; font-weight: bold; font-size: 9pt; color: #000;">
-                                    Total
-                                </td>
-                                <td style="border: 1.5px solid #000; padding: 2px; text-align: center; font-weight: bold; font-size: 9.5pt; color: #000;">
-                                    ${totalAnnualHours > 0 ? totalAnnualHours : ''}
-                                </td>
-                                <td style="border: 1.5px solid #000; padding: 2px;"></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-
-                    <!-- Form Code Footer -->
-                    <div style="margin-top: 8px; font-size: 7.5pt; color: #000; font-family: Arial, Helvetica, sans-serif;">
-                        S-21-S 11/23
-                    </div>
-                </div>
+                <tr style="height: ${rowHeight};">
+                    <td style="border: 1.2px solid #000; padding: 0px 4px; font-size: ${tdFontSize}; font-weight: normal; text-transform: capitalize; color: #000;">
+                        ${m.name}
+                    </td>
+                    <td style="border: 1.2px solid #000; padding: 0px; text-align: center;">
+                        <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">
+                            ${participo ? '✓' : ''}
+                        </span>
+                    </td>
+                    <td style="border: 1.2px solid #000; padding: 0px; text-align: center; font-size: ${tdFontSize}; font-weight: normal; color: #000;">
+                        ${studies}
+                    </td>
+                    <td style="border: 1.2px solid #000; padding: 0px; text-align: center;">
+                        <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">
+                            ${hasAuxPrecursor ? '✓' : ''}
+                        </span>
+                    </td>
+                    <td style="border: 1.2px solid #000; padding: 0px; text-align: center; font-size: ${tdFontSize}; font-weight: normal; color: #000;">
+                        ${hoursStr}
+                    </td>
+                    <td style="border: 1.2px solid #000; padding: 0px 4px; font-size: ${noteFontSize}; color: #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${cleanNote}
+                    </td>
+                </tr>
             `;
         }).join('');
 
-        return cardsHtml;
+        const titleSize = isTwoInOne ? '9.5pt' : '13.5pt';
+        const titleMargin = isTwoInOne ? '0 0 4px 0' : '0 0 16px 0';
+        const headerGridMargin = isTwoInOne ? '0 0 4px 0' : '0 0 12px 0';
+        const headerFontSize = isTwoInOne ? '7.5pt' : '9.5pt';
+        const nameFontSize = isTwoInOne ? '8.5pt' : '10pt';
+        const privFontSize = isTwoInOne ? '7pt' : '8.8pt';
+        const checkSize = isTwoInOne ? '10px' : '13px';
+        const checkFont = isTwoInOne ? '8px' : '11px';
+        const thHeadHeight = isTwoInOne ? '24px' : '42px';
+        const thFontSize = isTwoInOne ? '6.5pt' : '8pt';
+        const thSubFontSize = isTwoInOne ? '5.5pt' : '6.5pt';
+        const footerHeight = isTwoInOne ? '18px' : '27px';
+
+        return `
+            <div style="width: 100%; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff;">
+                <!-- Title -->
+                <h1 style="text-align: center; font-size: ${titleSize}; font-weight: bold; margin: ${titleMargin}; text-transform: uppercase; letter-spacing: 0.02em; color: #000; font-family: Arial, Helvetica, sans-serif;">
+                    REGISTRO DE PUBLICADOR DE LA CONGREGACIÓN
+                </h1>
+
+                <!-- Header Details Grid -->
+                <div style="margin: ${headerGridMargin}; font-size: ${headerFontSize}; color: #000;">
+                    <!-- Row 1: Nombre -->
+                    <div style="display: flex; align-items: flex-end; margin-bottom: ${isTwoInOne ? '2px' : '4px'};">
+                        <span style="font-weight: bold; min-width: 65px;">Nombre:</span>
+                        <span style="flex: 1; border-bottom: 1px solid #000; padding-left: 6px; padding-bottom: 1px; font-weight: bold; font-size: ${nameFontSize}; color: #000;">${pub.nombre}</span>
+                    </div>
+
+                    <!-- Row 2: Fecha de nacimiento and Género -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${isTwoInOne ? '2px' : '4px'};">
+                        <div style="display: flex; align-items: flex-end; flex: 1; max-width: 58%;">
+                            <span style="font-weight: bold; min-width: 130px; white-space: nowrap;">Fecha de nacimiento:</span>
+                            <span style="flex: 1; border-bottom: 1px solid #000; padding-left: 6px; padding-bottom: 1px; font-weight: normal;">${birthDate}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 14px; min-width: 180px; justify-content: flex-start; padding-left: 12px;">
+                            <label style="display: flex; align-items: center; gap: 4px;">
+                                <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isMale ? '✓' : ''}</span>
+                                <span style="font-weight: normal;">Hombre</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 4px;">
+                                <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isFemale ? '✓' : ''}</span>
+                                <span style="font-weight: normal;">Mujer</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Fecha de bautismo and Esperanza -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${isTwoInOne ? '3px' : '5px'};">
+                        <div style="display: flex; align-items: flex-end; flex: 1; max-width: 58%;">
+                            <span style="font-weight: bold; min-width: 130px; white-space: nowrap;">Fecha de bautismo:</span>
+                            <span style="flex: 1; border-bottom: 1px solid #000; padding-left: 6px; padding-bottom: 1px; font-weight: normal;">${baptismDate}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 14px; min-width: 180px; justify-content: flex-start; padding-left: 12px;">
+                            <label style="display: flex; align-items: center; gap: 4px;">
+                                <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isOtherSheep ? '✓' : ''}</span>
+                                <span style="font-weight: normal;">Otras ovejas</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 4px;">
+                                <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isAnointed ? '✓' : ''}</span>
+                                <span style="font-weight: normal;">Ungido</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Row 4: Privileges Row -->
+                    <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-top: ${isTwoInOne ? '2px' : '4px'}; margin-bottom: ${isTwoInOne ? '3px' : '5px'}; font-size: ${privFontSize};">
+                        <label style="display: flex; align-items: center; gap: 4px;">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isElder ? '✓' : ''}</span>
+                            <span style="font-weight: normal;">Anciano</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px;">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isMS ? '✓' : ''}</span>
+                            <span style="font-weight: normal;">Siervo min.</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px;">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isRegularPioneer ? '✓' : ''}</span>
+                            <span style="font-weight: normal;">Prec. regular</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px;">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isSpecialPioneer ? '✓' : ''}</span>
+                            <span style="font-weight: normal;">Prec. especial</span>
+                        </label>
+                        <label style="display: flex; align-items: flex-start; gap: 4px; line-height: 1.1;">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1.2px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1; margin-top: 1px;">${isMissionary ? '✓' : ''}</span>
+                            <span style="font-weight: normal;">Misionero de campo</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Annual Service Table -->
+                <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #000; table-layout: fixed; font-family: Arial, Helvetica, sans-serif;">
+                    <thead>
+                        <tr style="background-color: #ffffff; height: ${thHeadHeight};">
+                            <th style="border: 1.2px solid #000; padding: ${isTwoInOne ? '1px 3px' : '3px 4px'}; width: 16%; text-align: left; font-weight: bold; font-size: ${thFontSize}; color: #000;">
+                                Año de servicio
+                            </th>
+                            <th style="border: 1.2px solid #000; padding: ${isTwoInOne ? '1px' : '2px'}; width: 18%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1.1;">
+                                Participación<br />en ministerio
+                            </th>
+                            <th style="border: 1.2px solid #000; padding: ${isTwoInOne ? '1px' : '2px'}; width: 12%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1.1;">
+                                Cursos<br />bíblicos
+                            </th>
+                            <th style="border: 1.2px solid #000; padding: ${isTwoInOne ? '1px' : '2px'}; width: 13%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1.1;">
+                                Precursor<br />auxiliar
+                            </th>
+                            <th style="border: 1.2px solid #000; padding: ${isTwoInOne ? '1px' : '2px'}; width: 17%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1.1;">
+                                Horas<br />
+                                <span style="font-size: ${thSubFontSize}; font-weight: normal; display: block; line-height: 1.05;">(Si es precursor o misionero)</span>
+                            </th>
+                            <th style="border: 1.2px solid #000; padding: ${isTwoInOne ? '1px 3px' : '2px 4px'}; width: 24%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000;">
+                                Notas
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${monthRows}
+                    </tbody>
+                    <tfoot>
+                        <tr style="height: ${footerHeight};">
+                            <td colspan="4" style="border: 1.2px solid #000; padding: 1px 4px; text-align: right; font-weight: bold; font-size: ${thFontSize}; color: #000;">
+                                Total
+                            </td>
+                            <td style="border: 1.2px solid #000; padding: 1px; text-align: center; font-weight: bold; font-size: ${nameFontSize}; color: #000;">
+                                ${totalAnnualHours > 0 ? totalAnnualHours : ''}
+                            </td>
+                            <td style="border: 1.2px solid #000; padding: 1px;"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <!-- Form Code Footer -->
+                <div style="margin-top: 2px; font-size: 6pt; color: #000; font-family: Arial, Helvetica, sans-serif; display: flex; justify-content: space-between;">
+                    <span>S-21-S 11/23</span>
+                    <span style="color: #64748b; font-size: 6pt;">Año de Servicio ${serviceYear}</span>
+                </div>
+            </div>
+        `;
+    };
+
+    const generateCardPagesArray = (publishersList: any[], allReports: any[], layout: '2' | '1' = '2'): string[] => {
+        if (layout === '1') {
+            return publishersList.map(pub => {
+                const cardHtml = generateSingleCardHtml(pub, allReports, false);
+                return `
+                    <div class="s21-card-page" style="width: 794px; min-height: 1080px; margin: 0 auto; background: #ffffff; color: #000000; padding: 24px 28px; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; page-break-after: always; break-after: page; page-break-inside: avoid; break-inside: avoid;">
+                        ${cardHtml}
+                    </div>
+                `;
+            });
+        }
+
+        // 2 in 1: Two cards per page
+        const pages: string[] = [];
+        for (let i = 0; i < publishersList.length; i += 2) {
+            const pub1 = publishersList[i];
+            const pub2 = publishersList[i + 1] || null;
+
+            const card1Html = generateSingleCardHtml(pub1, allReports, true);
+            const card2Html = pub2 ? generateSingleCardHtml(pub2, allReports, true) : '';
+
+            pages.push(`
+                <div class="s21-card-page" style="width: 794px; height: 1040px; max-height: 1045px; margin: 0 auto; background: #ffffff; color: #000000; padding: 10px 22px; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; page-break-after: always; break-after: page; page-break-inside: avoid; break-inside: avoid; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;">
+                    <div style="height: 495px; max-height: 495px; overflow: hidden; box-sizing: border-box; flex-shrink: 0;">
+                        ${card1Html}
+                    </div>
+                    ${card2Html ? `
+                        <div style="border-top: 1px dashed #64748b; margin: 4px 0; position: relative; text-align: center; height: 1px; line-height: 0; flex-shrink: 0;">
+                            <span style="position: absolute; top: -6px; left: 50%; transform: translateX(-50%); background: #ffffff; padding: 0 10px; font-size: 6.5pt; color: #475569; font-weight: bold; letter-spacing: 0.5px;">✂ LÍNEA DE CORTE / DOBLADO (2 EN 1)</span>
+                        </div>
+                        <div style="height: 495px; max-height: 495px; overflow: hidden; box-sizing: border-box; flex-shrink: 0;">
+                            ${card2Html}
+                        </div>
+                    ` : `
+                        <div style="height: 495px; border: 1px dashed #cbd5e1; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 8pt; box-sizing: border-box; flex-shrink: 0;">
+                            <span>(Espacio disponible para próxima tarjeta)</span>
+                        </div>
+                    `}
+                </div>
+            `);
+        }
+        return pages;
+    };
+
+    const generateCardsHtml = (publishersList: any[], allReports: any[], layout: '2' | '1' = '2'): string => {
+        return generateCardPagesArray(publishersList, allReports, layout).join('');
     };
 
     const getFilteredPublishers = () => {
@@ -348,133 +440,89 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
             });
     };
 
-    const handleGeneratePdf = async () => {
-        setIsGenerating(true);
-        setStatusMessage('Cargando registros de informes...');
+    const getDocumentInfo = () => {
+        const groupName = selectedGroupId === 'todos' 
+            ? 'Todos' 
+            : (groups.find(g => String(g.id) === String(selectedGroupId))?.nombre?.replace(/\s+/g, '_') || 'Grupo');
 
-        try {
-            // Filter publishers
-            const activePublishers = getFilteredPublishers();
+        let filterSlug = 'General';
+        if (selectedRoleFilter === 'actual') filterSlug = 'Filtrados';
+        else if (selectedRoleFilter === 'precursor regular') filterSlug = 'Precursores_Regulares';
+        else if (selectedRoleFilter === 'precursor especial') filterSlug = 'Precursores_Especiales';
+        else if (selectedRoleFilter === 'anciano') filterSlug = 'Ancianos';
+        else if (selectedRoleFilter === 'siervo') filterSlug = 'Siervos';
+        else if (selectedRoleFilter === 'inactivo') filterSlug = 'Inactivos';
 
-            if (activePublishers.length === 0) {
-                alert('No se encontraron publicadores para los filtros seleccionados.');
-                setIsGenerating(false);
-                return;
-            }
+        const layoutSlug = cardsPerPage === '2' ? '2en1' : '1en1';
+        const fileName = `Tarjetas_S21_${filterSlug}_${groupName}_${serviceYear}_${layoutSlug}.pdf`;
+        const title = `Tarjetas S-21 (${cardsPerPage === '2' ? 'Formato 2 en 1' : 'Formato Individual'}) - ${serviceYear}`;
 
-            setStatusMessage(`Obteniendo datos de ${activePublishers.length} publicadores...`);
+        return { groupName, filterSlug, layoutSlug, fileName, title };
+    };
 
-            // Fetch reports for the service year range: (serviceYear - 1)-09 to serviceYear-08
-            const startMonth = `${serviceYear - 1}-09`;
-            const endMonth = `${serviceYear}-08`;
+    const fetchReportsForServiceYear = async () => {
+        const startMonth = `${serviceYear - 1}-09`;
+        const endMonth = `${serviceYear}-08`;
 
-            const { data: reportsData, error } = await supabase
+        return await fetchAllRows(async (start, end) => {
+            return await supabase
                 .from('informes_ministerio')
                 .select('*')
                 .gte('mes', startMonth)
-                .lte('mes', endMonth);
+                .lte('mes', endMonth)
+                .order('mes', { ascending: true })
+                .range(start, end);
+        });
+    };
 
-            if (error) {
-                console.error("Error fetching reports in bulk:", error);
-                alert("Error al cargar los informes.");
-                setIsGenerating(false);
-                return;
-            }
+    const handleOpenPreview = async () => {
+        const activePublishers = getFilteredPublishers();
+        if (activePublishers.length === 0) {
+            alert('No se encontraron publicadores para los filtros seleccionados.');
+            return;
+        }
 
-            setStatusMessage('Construyendo documento PDF oficial S-21...');
+        setIsGenerating(true);
+        setStatusMessage('Cargando datos para previsualización...');
+        try {
+            const reportsData = await fetchReportsForServiceYear();
+            const pages = generateCardPagesArray(activePublishers, reportsData || [], cardsPerPage);
+            const { fileName, title, layoutSlug } = getDocumentInfo();
 
-            const cardsHtml = generateCardsHtml(activePublishers, reportsData || []);
+            setPreviewModalData({
+                isOpen: true,
+                pages,
+                title,
+                fileName,
+                layoutLabel: cardsPerPage === '2' ? '2 por Hoja A4' : '1 por Hoja A4'
+            });
+        } catch (err) {
+            console.error("Error loading preview:", err);
+            alert("Error al cargar la vista previa. Intente de nuevo.");
+        } finally {
+            setIsGenerating(false);
+            setStatusMessage('');
+        }
+    };
 
-            const printStyles = `
-                @page {
-                    size: portrait;
-                    margin: 10mm 12mm;
-                }
-                body {
-                    margin: 0;
-                    padding: 0;
-                    background: #fff;
-                    color: #000;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }
-                .s21-card-page {
-                    page-break-after: always;
-                    break-after: page;
-                    page-break-inside: avoid;
-                    break-inside: avoid;
-                    margin-bottom: 20px;
-                }
-                .s21-card-page:last-child {
-                    page-break-after: auto;
-                    break-after: auto;
-                }
-            `;
+    const handleGeneratePdf = async () => {
+        const activePublishers = getFilteredPublishers();
+        if (activePublishers.length === 0) {
+            alert('No se encontraron publicadores para los filtros seleccionados.');
+            return;
+        }
 
-            // If html2pdf is available, use it for direct file download
-            if (typeof html2pdf !== 'undefined') {
-                const container = document.createElement('div');
-                container.style.position = 'absolute';
-                container.style.left = '-9999px';
-                container.style.top = '0';
-                container.style.width = '794px';
-                container.style.backgroundColor = '#ffffff';
+        setIsGenerating(true);
+        setStatusMessage('Obteniendo datos de publicadores...');
 
-                const styleEl = document.createElement('style');
-                styleEl.innerHTML = printStyles;
-                container.appendChild(styleEl);
+        try {
+            const reportsData = await fetchReportsForServiceYear();
+            setStatusMessage('Renderizando páginas PDF de alta calidad...');
 
-                const contentWrapper = document.createElement('div');
-                contentWrapper.innerHTML = cardsHtml;
-                container.appendChild(contentWrapper);
-                document.body.appendChild(container);
+            const cardsHtml = generateCardsHtml(activePublishers, reportsData || [], cardsPerPage);
+            const { fileName } = getDocumentInfo();
 
-                const groupName = selectedGroupId === 'todos' 
-                    ? 'Todos' 
-                    : (groups.find(g => String(g.id) === String(selectedGroupId))?.nombre?.replace(/\s+/g, '_') || 'Grupo');
-
-                let filterSlug = 'General';
-                if (selectedRoleFilter === 'actual') filterSlug = 'Filtrados';
-                else if (selectedRoleFilter === 'precursor regular') filterSlug = 'Precursores_Regulares';
-                else if (selectedRoleFilter === 'precursor especial') filterSlug = 'Precursores_Especiales';
-                else if (selectedRoleFilter === 'anciano') filterSlug = 'Ancianos';
-                else if (selectedRoleFilter === 'siervo') filterSlug = 'Siervos';
-                else if (selectedRoleFilter === 'inactivo') filterSlug = 'Inactivos';
-
-                const opt = {
-                    margin: [10, 10, 10, 10],
-                    filename: `Tarjetas_S21_${filterSlug}_${groupName}_${serviceYear}.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true, logging: false },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak: { mode: ['css', 'legacy'] }
-                };
-
-                await html2pdf().from(container).set(opt).save();
-                document.body.removeChild(container);
-            } else {
-                // Fallback to print window
-                const printWin = window.open('', '_blank');
-                if (printWin) {
-                    printWin.document.write(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <title>Tarjetas S-21 - ${serviceYear}</title>
-                            <style>${printStyles}</style>
-                        </head>
-                        <body>
-                            ${cardsHtml}
-                        </body>
-                        </html>
-                    `);
-                    printWin.document.close();
-                    printWin.focus();
-                    setTimeout(() => {
-                        printWin.print();
-                    }, 500);
-                }
-            }
+            await downloadHtmlAsPdf(cardsHtml, fileName, (msg) => setStatusMessage(msg));
 
             setStatusMessage('¡Descarga completada con éxito!');
             setTimeout(() => {
@@ -482,94 +530,43 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
                 setStatusMessage('');
                 onClose();
             }, 1200);
-
         } catch (err) {
             console.error("Error in bulk card generation:", err);
-            alert("Ocurrió un error al generar las tarjetas en lote.");
+            alert("Ocurrió un error al generar las tarjetas en lote. Por favor intente nuevamente.");
             setIsGenerating(false);
             setStatusMessage('');
         }
     };
 
     const handlePrintDirect = async () => {
+        const activePublishers = getFilteredPublishers();
+        if (activePublishers.length === 0) {
+            alert('No se encontraron publicadores para los filtros seleccionados.');
+            return;
+        }
+
         setIsGenerating(true);
-        setStatusMessage('Preparando vista de impresión...');
+        setStatusMessage('Preparando vista de impresión sin cortes...');
 
         try {
-            const activePublishers = getFilteredPublishers();
+            const reportsData = await fetchReportsForServiceYear();
+            const cardsHtml = generateCardsHtml(activePublishers, reportsData || [], cardsPerPage);
+            const { title } = getDocumentInfo();
 
-            if (activePublishers.length === 0) {
-                alert('No se encontraron publicadores para los filtros seleccionados.');
-                setIsGenerating(false);
-                return;
-            }
+            printHtmlDocument(cardsHtml, title);
 
-            const startMonth = `${serviceYear - 1}-09`;
-            const endMonth = `${serviceYear}-08`;
-
-            const { data: reportsData } = await supabase
-                .from('informes_ministerio')
-                .select('*')
-                .gte('mes', startMonth)
-                .lte('mes', endMonth);
-
-            const cardsHtml = generateCardsHtml(activePublishers, reportsData || []);
-
-            const printWin = window.open('', '_blank');
-            if (printWin) {
-                printWin.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Tarjetas S-21 - ${serviceYear}</title>
-                        <style>
-                            @page {
-                                size: portrait;
-                                margin: 10mm 12mm;
-                            }
-                            body {
-                                margin: 0;
-                                padding: 0;
-                                background: #fff;
-                                color: #000;
-                                -webkit-print-color-adjust: exact !important;
-                                print-color-adjust: exact !important;
-                            }
-                            .s21-card-page {
-                                page-break-after: always;
-                                break-after: page;
-                                page-break-inside: avoid;
-                                break-inside: avoid;
-                                margin-bottom: 20px;
-                            }
-                            .s21-card-page:last-child {
-                                page-break-after: auto;
-                                break-after: auto;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        ${cardsHtml}
-                    </body>
-                    </html>
-                `);
-                printWin.document.close();
-                printWin.focus();
-                setTimeout(() => {
-                    printWin.print();
-                    setIsGenerating(false);
-                    setStatusMessage('');
-                }, 500);
-            } else {
+            setTimeout(() => {
                 setIsGenerating(false);
                 setStatusMessage('');
-            }
+            }, 1000);
         } catch (e) {
             console.error("Error direct print:", e);
+            alert("Ocurrió un error al preparar la impresión.");
             setIsGenerating(false);
             setStatusMessage('');
         }
     };
+
 
     const activeFilteredList = getFilteredPublishers();
     const activeCount = activeFilteredList.length;
@@ -632,8 +629,8 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
                             <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <div>
-                            <strong className="block font-bold mb-0.5">Exportación fiel y sin elementos adicionales:</strong>
-                            Genera las tarjetas oficiales S-21 con el desglose anual del registro de publicador, listas para archivar o imprimir.
+                            <strong className="block font-bold mb-0.5">Exportación fiel y optimizada:</strong>
+                            Genera las tarjetas oficiales S-21 con el desglose anual. El modo <strong>2 en 1</strong> ahorra el 50% de papel imprimiendo dos tarjetas listas por página A4 con línea de corte.
                         </div>
                     </div>
 
@@ -685,6 +682,22 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
                         </select>
                     </div>
 
+                    {/* Format Layout: 2 in 1 vs 1 per page */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5 tracking-wider">
+                            Formato de Impresión / Distribución
+                        </label>
+                        <select
+                            value={cardsPerPage}
+                            onChange={(e) => setCardsPerPage(e.target.value as '2' | '1')}
+                            disabled={isGenerating}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        >
+                            <option value="2">📄 2 Tarjetas por Hoja (2 en 1 - A4) [Recomendado / Ahorra Papel]</option>
+                            <option value="1">📄 1 Tarjeta por Hoja (A4 Completa)</option>
+                        </select>
+                    </div>
+
                     {/* Service Year */}
                     <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5 tracking-wider">
@@ -708,9 +721,11 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
                             <i className="fas fa-id-card text-indigo-600"></i>
                             <span className="uppercase">Tarjetas a generar:</span>
                         </div>
-                        <span className="text-sm font-extrabold text-indigo-700 bg-white px-3 py-1 rounded-lg border border-indigo-200 shadow-sm">
-                            {activeCount} {activeCount === 1 ? 'Tarjeta S-21' : 'Tarjetas S-21'}
-                        </span>
+                        <div className="text-right">
+                            <span className="text-sm font-extrabold text-indigo-700 bg-white px-3 py-1 rounded-lg border border-indigo-200 shadow-sm inline-block">
+                                {activeCount} {activeCount === 1 ? 'Tarjeta' : 'Tarjetas'} ({Math.ceil(activeCount / (cardsPerPage === '2' ? 2 : 1))} {Math.ceil(activeCount / (cardsPerPage === '2' ? 2 : 1)) === 1 ? 'hoja A4' : 'hojas A4'})
+                            </span>
+                        </div>
                     </div>
 
                     {statusMessage && (
@@ -724,39 +739,71 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
                 </div>
 
                 {/* Modal Footer */}
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={isGenerating}
-                        className="px-4 py-2 text-slate-600 hover:text-slate-800 font-bold text-xs rounded-xl hover:bg-slate-200/60 transition-colors"
+                        className="px-4 py-2.5 text-slate-600 hover:text-slate-800 font-bold text-xs rounded-xl hover:bg-slate-200/60 transition-colors text-center order-4 sm:order-1"
                     >
                         Cancelar
                     </button>
-                    <button
-                        type="button"
-                        onClick={handlePrintDirect}
-                        disabled={isGenerating}
-                        className="px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                        </svg>
-                        <span>Imprimir Todas</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleGeneratePdf}
-                        disabled={isGenerating}
-                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-indigo-200 transition-all flex items-center gap-2"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        <span>Descargar PDF Masivo</span>
-                    </button>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 order-1 sm:order-2">
+                        <button
+                            type="button"
+                            onClick={handleOpenPreview}
+                            disabled={isGenerating}
+                            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold text-xs rounded-xl shadow-sm hover:shadow-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                            {isGenerating && statusMessage.includes('previsualización') ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Eye className="w-4 h-4" />
+                            )}
+                            <span>Previsualizar</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handlePrintDirect}
+                            disabled={isGenerating}
+                            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 active:bg-black text-white font-extrabold text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                            <Printer className="w-4 h-4" />
+                            <span>Imprimir Todas</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleGeneratePdf}
+                            disabled={isGenerating}
+                            className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs rounded-xl shadow-md hover:shadow-rose-300/50 transition-all flex items-center justify-center gap-2 cursor-pointer border border-rose-700 disabled:opacity-50"
+                        >
+                            {isGenerating && !statusMessage.includes('previsualización') ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Download className="w-4 h-4" />
+                            )}
+                            <span>Descargar PDF Masivo</span>
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            {/* Document Preview Modal */}
+            {previewModalData && (
+                <DocumentPreviewModal
+                    isOpen={previewModalData.isOpen}
+                    onClose={() => setPreviewModalData(null)}
+                    title={previewModalData.title}
+                    fileName={previewModalData.fileName}
+                    pagesHtml={previewModalData.pages}
+                    layoutLabel={previewModalData.layoutLabel}
+                    subtitle={`Vista previa de ${activeCount} tarjetas S-21 (${cardsPerPage === '2' ? '2 tarjetas por página A4' : '1 tarjeta por página A4'})`}
+                />
+            )}
         </div>
     );
 };
+

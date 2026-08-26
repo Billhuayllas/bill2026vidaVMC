@@ -201,10 +201,6 @@ app.post("/api/rol-grupos", async (req, res) => {
 
 // Configurar Vite middleware para desarrollo o servir estáticos en producción
 async function configViteAndStart() {
-    // Inicializar el esquema de base de datos Turso una vez al iniciar el servidor
-    console.log("Inicializando esquema de base de datos Turso...");
-    await initTursoSchema();
-
     if (process.env.NODE_ENV !== "production") {
         const { createServer: createViteServer } = await import("vite");
         const vite = await createViteServer({
@@ -222,6 +218,7 @@ async function configViteAndStart() {
 
     app.listen(PORT, "0.0.0.0", () => {
         console.log(`[FULL-STACK] Servidor escuchando en http://0.0.0.0:${PORT}`);
+        initTursoSchema().catch((err) => console.warn("Aviso al inicializar esquema Turso:", err));
     });
 }
 

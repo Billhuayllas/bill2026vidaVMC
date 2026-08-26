@@ -1,5 +1,30 @@
 
 import React, { useState, useEffect } from 'react';
+import { 
+    Lock, 
+    Unlock, 
+    X, 
+    Briefcase, 
+    CalendarCheck, 
+    CheckCircle2, 
+    Clock, 
+    XCircle, 
+    Heart, 
+    Tag, 
+    Plus, 
+    Check, 
+    Trash2, 
+    MapPin, 
+    Phone, 
+    ShieldAlert, 
+    Award, 
+    ShieldCheck, 
+    Globe, 
+    User,
+    Calendar,
+    Sparkles,
+    KeyRound
+} from 'lucide-react';
 import { GroupMember, MinistryReport, VisitData, PublisherRole, Publisher } from './types';
 import { getAvatarColor, cleanNotes } from './utils';
 import { useCongregation } from '../../lib/CongregationContext';
@@ -106,6 +131,11 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
         if (isReadOnly) return;
         const val = e.target.value as PublisherRole;
         setPioneerRole(val);
+        if ((val === 'Precursor Regular' || val === 'Precursor Especial') && !inicioPrecursorMes) {
+            const today = new Date();
+            const ym = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+            setInicioPrecursorMes(ym);
+        }
         handleRoleUpdate(val, appointment, isMisionero, customConcepts);
     };
 
@@ -156,6 +186,7 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
     const [contactoEmergencia, setContactoEmergencia] = useState<string>(publisherDetails?.contacto_emergencia || '');
     const [telefonoPersonal, setTelefonoPersonal] = useState<string>(publisherDetails?.telefono_personal || '');
     const [nombreCompleto, setNombreCompleto] = useState<string>(publisherDetails?.nombre_completo || '');
+    const [inicioPrecursorMes, setInicioPrecursorMes] = useState<string>(publisherDetails?.inicio_precursor_mes || '');
     const [isNotesUnlocked, setIsNotesUnlocked] = useState(false);
 
     // Wizard states
@@ -414,27 +445,52 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                     </div>
                 )}
 
-                {/* Header */}
-                <div style={{ padding: '15px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: getAvatarColor(nombreCompleto || pName), color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem' }}>{(nombreCompleto || pName).charAt(0)}</div>
+                {/* Header iOS Style */}
+                <div style={{ 
+                    padding: '16px 20px', 
+                    borderBottom: '1px solid var(--border-color)', 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    flexShrink: 0,
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div style={{ 
+                            width: '42px', 
+                            height: '42px', 
+                            borderRadius: '12px', 
+                            backgroundColor: getAvatarColor(nombreCompleto || pName), 
+                            color: 'white', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            fontWeight: '700', 
+                            fontSize: '1.2rem',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.12)' 
+                        }}>
+                            {(nombreCompleto || pName).charAt(0)}
+                        </div>
                         <div>
-                            <h3 style={{ margin: '0 0 4px 0', fontSize: '1.2rem', color: 'var(--text-color)' }}>{nombreCompleto || pName}</h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <h3 style={{ margin: '0 0 4px 0', fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-color)', letterSpacing: '-0.01em' }}>
+                                {nombreCompleto || pName}
+                            </h3>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                 <select 
                                     value={pioneerRole} 
                                     onChange={handlePioneerChange}
                                     disabled={isReadOnly} 
                                     style={{ 
-                                        fontSize: '0.8rem', 
+                                        fontSize: '0.78rem', 
                                         border: '1px solid var(--border-color)', 
-                                        borderRadius: '4px',
+                                        borderRadius: '8px',
                                         background: 'var(--card-bg-color)', 
                                         color: 'var(--text-color)', 
                                         fontWeight: '600', 
-                                        padding: '2px 6px',
+                                        padding: '3px 8px',
                                         cursor: isReadOnly ? 'default' : 'pointer',
-                                        outline:'none'
+                                        outline: 'none',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
                                     }}
                                 >
                                     <option value="Publicador">Publicador</option>
@@ -445,16 +501,20 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
 
                                 {/* Privileges Checkboxes */}
                                 <label style={{ 
-                                    display: 'flex', 
+                                    display: 'inline-flex', 
                                     alignItems: 'center', 
                                     gap: '4px', 
                                     fontSize: '0.75rem', 
                                     color: (publisherDetails?.genero === 'Mujer') ? 'var(--text-color-light)' : 'var(--text-color)', 
-                                    fontWeight: '500', 
+                                    fontWeight: '600', 
                                     cursor: (isReadOnly || (publisherDetails?.genero === 'Mujer')) ? 'default' : 'pointer',
-                                    opacity: (publisherDetails?.genero === 'Mujer') ? 0.5 : 1,
-                                    userSelect: 'none'
-                                }} title={(publisherDetails?.genero === 'Mujer') ? 'Solo para hombres' : ''}>
+                                    opacity: (publisherDetails?.genero === 'Mujer') ? 0.45 : 1,
+                                    userSelect: 'none',
+                                    backgroundColor: appointment === 'Anciano' ? '#eff6ff' : 'transparent',
+                                    padding: '2px 6px',
+                                    borderRadius: '6px',
+                                    border: appointment === 'Anciano' ? '1px solid #bfdbfe' : '1px solid transparent'
+                                }} title={(publisherDetails?.genero === 'Mujer') ? 'Solo para varones' : ''}>
                                     <input 
                                         type="checkbox" 
                                         checked={appointment === 'Anciano'} 
@@ -466,16 +526,20 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                 </label>
 
                                 <label style={{ 
-                                    display: 'flex', 
+                                    display: 'inline-flex', 
                                     alignItems: 'center', 
                                     gap: '4px', 
                                     fontSize: '0.75rem', 
                                     color: (publisherDetails?.genero === 'Mujer') ? 'var(--text-color-light)' : 'var(--text-color)', 
-                                    fontWeight: '500', 
+                                    fontWeight: '600', 
                                     cursor: (isReadOnly || (publisherDetails?.genero === 'Mujer')) ? 'default' : 'pointer',
-                                    opacity: (publisherDetails?.genero === 'Mujer') ? 0.5 : 1,
-                                    userSelect: 'none'
-                                }} title={(publisherDetails?.genero === 'Mujer') ? 'Solo para hombres' : ''}>
+                                    opacity: (publisherDetails?.genero === 'Mujer') ? 0.45 : 1,
+                                    userSelect: 'none',
+                                    backgroundColor: appointment === 'Siervo ministerial' ? '#eff6ff' : 'transparent',
+                                    padding: '2px 6px',
+                                    borderRadius: '6px',
+                                    border: appointment === 'Siervo ministerial' ? '1px solid #bfdbfe' : '1px solid transparent'
+                                }} title={(publisherDetails?.genero === 'Mujer') ? 'Solo para varones' : ''}>
                                     <input 
                                         type="checkbox" 
                                         checked={appointment === 'Siervo ministerial'} 
@@ -487,36 +551,89 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                 </label>
 
                                 <label style={{ 
-                                    display: 'flex', 
+                                    display: 'inline-flex', 
                                     alignItems: 'center', 
                                     gap: '4px', 
                                     fontSize: '0.75rem', 
                                     color: 'var(--text-color)', 
-                                    fontWeight: '500', 
+                                    fontWeight: '600', 
                                     cursor: isReadOnly ? 'default' : 'pointer',
-                                    userSelect: 'none'
+                                    userSelect: 'none',
+                                    backgroundColor: isMisionero ? '#fdf2f8' : 'transparent',
+                                    padding: '2px 6px',
+                                    borderRadius: '6px',
+                                    border: isMisionero ? '1px solid #fbcfe8' : '1px solid transparent'
                                 }}>
                                     <input 
                                         type="checkbox" 
                                         checked={isMisionero} 
                                         disabled={isReadOnly}
                                         onChange={handleMisioneroToggle}
-                                        style={{ accentColor: '#2563eb' }}
+                                        style={{ accentColor: '#db2777' }}
                                     />
                                     Misionero
                                 </label>
                             </div>
+                            {(pioneerRole === 'Precursor Regular' || pioneerRole === 'Precursor Especial') && (
+                                <div style={{ 
+                                    marginTop: '8px', 
+                                    display: 'inline-flex', 
+                                    alignItems: 'center', 
+                                    gap: '6px', 
+                                    backgroundColor: 'var(--bg-color)', 
+                                    padding: '4px 10px', 
+                                    borderRadius: '8px', 
+                                    border: '1px solid var(--border-color)', 
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)' 
+                                }}>
+                                    <Sparkles size={13} color="#d97706" />
+                                    <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-color)', letterSpacing: '0.02em' }}>Inicio precursor:</span>
+                                    <input 
+                                        type="month"
+                                        value={inicioPrecursorMes ? (inicioPrecursorMes.includes('-') && inicioPrecursorMes.length >= 7 ? inicioPrecursorMes.substring(0, 7) : inicioPrecursorMes) : ''}
+                                        disabled={isReadOnly}
+                                        onChange={(e) => setInicioPrecursorMes(e.target.value)}
+                                        style={{
+                                            fontSize: '0.78rem',
+                                            padding: '2px 6px',
+                                            borderRadius: '6px',
+                                            border: '1px solid var(--border-color)',
+                                            backgroundColor: 'var(--card-bg-color)',
+                                            color: 'var(--text-color)',
+                                            fontWeight: '600',
+                                            outline: 'none'
+                                        }}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
-                    <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: '1.5rem', color: 'var(--text-color-light)', cursor: 'pointer' }}>&times;</button>
+                    <button 
+                        onClick={onClose} 
+                        style={{ 
+                            border: 'none', 
+                            background: 'var(--bg-color)', 
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--text-color-light)', 
+                            cursor: 'pointer',
+                            transition: 'all 0.15s'
+                        }}
+                    >
+                        <X size={18} strokeWidth={2.5} />
+                    </button>
                 </div>
 
-                <div style={{ padding: '20px', overflowY: 'auto', backgroundColor: 'var(--bg-color)' }}>
+                <div style={{ padding: '16px 20px', overflowY: 'auto', backgroundColor: 'var(--bg-color)', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif' }}>
                     {/* Informe */}
-                    <div style={{ backgroundColor: 'var(--card-bg-color)', padding: '20px', borderRadius: '16px', marginBottom: '15px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', paddingBottom:'10px', borderBottom:'1px solid var(--border-color)' }}>
-                            <h4 style={{ margin: 0, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
-                                <i className="fas fa-briefcase"></i> Informe del Mes
+                    <div style={{ backgroundColor: 'var(--card-bg-color)', padding: '18px 20px', borderRadius: '16px', marginBottom: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid var(--border-color)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom:'10px', borderBottom:'1px solid var(--border-color)' }}>
+                            <h4 style={{ margin: 0, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem', fontWeight: '700' }}>
+                                <Briefcase size={16} strokeWidth={2.2} /> Informe del Mes
                                 {!isReadOnly && (
                                     <button
                                         onClick={() => {
@@ -534,77 +651,77 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                                 }
                                             }
                                         }}
-                                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', opacity: 0.4, padding: '0 5px' }}
+                                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', opacity: 0.5, padding: '0 4px', display: 'inline-flex', alignItems: 'center' }}
                                     >
-                                        <i className={`fas ${isReportLocked ? 'fa-lock' : 'fa-unlock'}`} style={{ fontSize: '0.8rem' }}></i>
+                                        {isReportLocked ? <Lock size={14} color="#dc2626" /> : <Unlock size={14} color="#64748b" />}
                                     </button>
                                 )}
                             </h4>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: isReportReadOnly ? 'default' : 'pointer' }}>
-                                <span style={{ fontSize: '0.85rem', color: hasReport ? '#3b82f6' : 'var(--text-color-light)', fontWeight: '600' }}>{hasReport ? 'Entregado' : 'Sin entregar'}</span>
-                                <div style={{ position: 'relative', width: '44px', height: '24px' }}>
+                                <span style={{ fontSize: '0.82rem', color: hasReport ? '#2563eb' : 'var(--text-color-light)', fontWeight: '700' }}>{hasReport ? 'Entregado' : 'Sin entregar'}</span>
+                                <div style={{ position: 'relative', width: '42px', height: '24px' }}>
                                     <input type="checkbox" checked={hasReport} onChange={handleToggleActive} disabled={isReportReadOnly} style={{ opacity: 0, width: 0, height: 0 }} />
-                                    <span style={{ position: 'absolute', cursor: isReportReadOnly ? 'default' : 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: hasReport ? '#3b82f6' : 'var(--border-color)', transition: '.4s', borderRadius: '34px', opacity: isReportReadOnly ? 0.6 : 1 }}></span>
-                                    <span style={{ position: 'absolute', content: '""', height: '18px', width: '18px', left: hasReport ? '22px' : '4px', bottom: '3px', backgroundColor: 'white', transition: '.4s', borderRadius: '50%', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}></span>
+                                    <span style={{ position: 'absolute', cursor: isReportReadOnly ? 'default' : 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: hasReport ? '#2563eb' : 'var(--border-color)', transition: '.3s', borderRadius: '34px', opacity: isReportReadOnly ? 0.6 : 1 }}></span>
+                                    <span style={{ position: 'absolute', content: '""', height: '18px', width: '18px', left: hasReport ? '20px' : '3px', bottom: '3px', backgroundColor: 'white', transition: '.3s', borderRadius: '50%', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}></span>
                                 </div>
                             </label>
                         </div>
                         {hasReport ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', animation: 'fadeIn 0.3s ease-in' }}>
-                                <div style={{ marginBottom: '5px' }}>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-color-light)', marginBottom: '10px', textTransform: 'uppercase' }}>Actividad del Mes</label>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', animation: 'fadeIn 0.3s ease-in' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-color-light)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Actividad del Mes</label>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         <button 
                                             onClick={() => { if(!isReportReadOnly) { onReportChange(pName, 'horas', ''); onReportChange(pName, 'horas_especiales', ''); onReportChange(pName, 'estudios', ''); onReportChange(pName, 'participo', false); setDidPreach(false); } }}
                                             style={{ 
-                                                display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', 
+                                                display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', 
                                                 backgroundColor: !didPreach ? '#fee2e2' : 'var(--bg-color)', 
-                                                border: !didPreach ? '2px solid #ef4444' : '1px solid var(--border-color)', 
+                                                border: !didPreach ? '1.5px solid #ef4444' : '1px solid var(--border-color)', 
                                                 borderRadius: '12px', cursor: isReportReadOnly ? 'default' : 'pointer', textAlign: 'left',
-                                                transition: 'all 0.2s',
-                                                color: !didPreach ? '#ef4444' : 'var(--text-color)'
+                                                transition: 'all 0.15s',
+                                                color: !didPreach ? '#dc2626' : 'var(--text-color)'
                                             }}
                                         >
-                                            <i className="fas fa-times-circle" style={{ fontSize: '1.2rem', color: !didPreach ? '#ef4444' : 'var(--text-color-light)' }}></i>
+                                            <XCircle size={20} color={!didPreach ? '#dc2626' : '#94a3b8'} strokeWidth={2.2} />
                                             <div>
-                                                <div style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>No participó</div>
-                                                <div style={{ fontSize: '0.75rem', color: !didPreach ? '#ef4444' : 'var(--text-color-light)', opacity: 0.8 }}>No tuvo actividad este mes</div>
+                                                <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>No participó</div>
+                                                <div style={{ fontSize: '0.73rem', color: !didPreach ? '#dc2626' : 'var(--text-color-light)', opacity: 0.85 }}>No tuvo actividad en la predicación este mes</div>
                                             </div>
                                         </button>
 
                                         <button 
                                             onClick={() => { if(!isReportReadOnly) { onReportChange(pName, 'horas', ''); onReportChange(pName, 'horas_especiales', ''); onReportChange(pName, 'participo', true); setDidPreach(true); } }}
                                             style={{ 
-                                                display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', 
+                                                display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', 
                                                 backgroundColor: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#dcfce7' : 'var(--bg-color)', 
-                                                border: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '2px solid #10b981' : '1px solid var(--border-color)', 
+                                                border: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '1.5px solid #10b981' : '1px solid var(--border-color)', 
                                                 borderRadius: '12px', cursor: isReportReadOnly ? 'default' : 'pointer', textAlign: 'left',
-                                                transition: 'all 0.2s',
-                                                color: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#10b981' : 'var(--text-color)'
+                                                transition: 'all 0.15s',
+                                                color: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#047857' : 'var(--text-color)'
                                             }}
                                         >
-                                            <i className="fas fa-check-circle" style={{ fontSize: '1.2rem', color: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#10b981' : 'var(--text-color-light)' }}></i>
+                                            <CheckCircle2 size={20} color={didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#047857' : '#94a3b8'} strokeWidth={2.2} />
                                             <div>
-                                                <div style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>Participó (Sin horas)</div>
-                                                <div style={{ fontSize: '0.75rem', color: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#10b981' : 'var(--text-color-light)', opacity: 0.8 }}>Informa participación y cursos bíblicos</div>
+                                                <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>Participó (Sin horas)</div>
+                                                <div style={{ fontSize: '0.73rem', color: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#047857' : 'var(--text-color-light)', opacity: 0.85 }}>Informa participación y cursos bíblicos</div>
                                             </div>
                                         </button>
 
                                         <button 
                                             onClick={() => { if(!isReportReadOnly) { setDidPreach(true); onReportChange(pName, 'participo', true); if(Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0) { onReportChange(pName, 'horas', 1); } } }}
                                             style={{ 
-                                                display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 15px', 
+                                                display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', 
                                                 backgroundColor: didPreach && (Number(reportEntry?.horas || 0) > 0 || Number(reportEntry?.horas_especiales || 0) > 0) ? '#dbeafe' : 'var(--bg-color)', 
-                                                border: didPreach && (Number(reportEntry?.horas || 0) > 0 || Number(reportEntry?.horas_especiales || 0) > 0) ? '2px solid #3b82f6' : '1px solid var(--border-color)', 
+                                                border: didPreach && (Number(reportEntry?.horas || 0) > 0 || Number(reportEntry?.horas_especiales || 0) > 0) ? '1.5px solid #2563eb' : '1px solid var(--border-color)', 
                                                 borderRadius: '12px', cursor: isReportReadOnly ? 'default' : 'pointer', textAlign: 'left',
-                                                transition: 'all 0.2s',
-                                                color: didPreach && (Number(reportEntry?.horas || 0) > 0 || Number(reportEntry?.horas_especiales || 0) > 0) ? '#3b82f6' : 'var(--text-color)'
+                                                transition: 'all 0.15s',
+                                                color: didPreach && (Number(reportEntry?.horas || 0) > 0 || Number(reportEntry?.horas_especiales || 0) > 0) ? '#1d4ed8' : 'var(--text-color)'
                                             }}
                                         >
-                                            <i className="fas fa-clock" style={{ fontSize: '1.2rem', color: didPreach && (Number(reportEntry?.horas || 0) > 0 || Number(reportEntry?.horas_especiales || 0) > 0) ? '#3b82f6' : 'var(--text-color-light)' }}></i>
+                                            <Clock size={20} color={didPreach && (Number(reportEntry?.horas || 0) > 0 || Number(reportEntry?.horas_especiales || 0) > 0) ? '#1d4ed8' : '#94a3b8'} strokeWidth={2.2} />
                                             <div>
-                                                <div style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>Participó (Con horas)</div>
-                                                <div style={{ fontSize: '0.75rem', color: didPreach && (Number(reportEntry?.horas || 0) > 0 || Number(reportEntry?.horas_especiales || 0) > 0) ? '#3b82f6' : 'var(--text-color-light)', opacity: 0.8 }}>Informa horas, participación y cursos</div>
+                                                <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>Participó (Con horas)</div>
+                                                <div style={{ fontSize: '0.73rem', color: didPreach && (Number(reportEntry?.horas || 0) > 0 || Number(reportEntry?.horas_especiales || 0) > 0) ? '#1d4ed8' : 'var(--text-color-light)', opacity: 0.85 }}>Informa horas dedicadas, participación y cursos</div>
                                             </div>
                                         </button>
                                     </div>
@@ -957,7 +1074,7 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                     publisherDetails?.fecha_nacimiento || '', 
                                     publisherDetails?.fecha_bautismo || '', 
                                     publisherDetails?.esperanza || '', 
-                                    publisherDetails?.inicio_precursor_mes || '', 
+                                    inicioPrecursorMes, 
                                     publisherDetails?.fecha_nombramiento || '', 
                                     nombreCompleto
                                 );

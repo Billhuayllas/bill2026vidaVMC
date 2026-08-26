@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { saveBackupToTurso } from './turso';
+import { fetchAllRows } from './supabasePagination';
 
 export const saveCompleteBackupToSupabase = async (congregation: any, setStatusMessage: (msg: { text: string, type: 'info'|'success'|'error'}|null) => void) => {
     if (!congregation) return;
@@ -11,8 +12,9 @@ export const saveCompleteBackupToSupabase = async (congregation: any, setStatusM
         if (grpErr) throw grpErr;
         const { data: allMembers, error: memErr } = await supabase.from('miembros_grupo').select('*').in('grupo_id', allGroups.map(g => g.id));
         if (memErr) throw memErr;
-        const { data: allReports, error: repErr } = await supabase.from('informes_ministerio').select('*').eq('congregation_id', congregation.id);
-        if (repErr) throw repErr;
+        const allReports = await fetchAllRows(async (start, end) => {
+            return await supabase.from('informes_ministerio').select('*').eq('congregation_id', congregation.id).order('id').range(start, end);
+        });
         const { data: allVisits, error: visErr } = await supabase.from('visitas_pastoral').select('*').in('publicador_nombre', allPublishers.map(p => p.nombre));
         if (visErr) throw visErr;
         const { data: allPrograms, error: progErr } = await supabase.from('programas').select('*').eq('congregation_id', congregation.id);
@@ -100,7 +102,9 @@ export const shareCompleteBackup = async (congregation: any, setStatusMessage: (
         const { data: allPublishers } = await supabase.from('publicadores').select('*').eq('congregation_id', congregation.id);
         const { data: allGroups } = await supabase.from('grupos').select('*').eq('congregation_id', congregation.id);
         const { data: allMembers } = await supabase.from('miembros_grupo').select('*').in('grupo_id', (allGroups||[]).map(g => g.id));
-        const { data: allReports } = await supabase.from('informes_ministerio').select('*').eq('congregation_id', congregation.id);
+        const allReports = await fetchAllRows(async (start, end) => {
+            return await supabase.from('informes_ministerio').select('*').eq('congregation_id', congregation.id).order('id').range(start, end);
+        });
         const { data: allVisits } = await supabase.from('visitas_pastoral').select('*').in('publicador_nombre', (allPublishers||[]).map(p => p.nombre));
         const { data: allPrograms } = await supabase.from('programas').select('*').eq('congregation_id', congregation.id);
 
@@ -160,7 +164,9 @@ export const exportCompleteBackup = async (congregation: any, setStatusMessage: 
         const { data: allPublishers } = await supabase.from('publicadores').select('*').eq('congregation_id', congregation.id);
         const { data: allGroups } = await supabase.from('grupos').select('*').eq('congregation_id', congregation.id);
         const { data: allMembers } = await supabase.from('miembros_grupo').select('*').in('grupo_id', (allGroups||[]).map(g => g.id));
-        const { data: allReports } = await supabase.from('informes_ministerio').select('*').eq('congregation_id', congregation.id);
+        const allReports = await fetchAllRows(async (start, end) => {
+            return await supabase.from('informes_ministerio').select('*').eq('congregation_id', congregation.id).order('id').range(start, end);
+        });
         const { data: allVisits } = await supabase.from('visitas_pastoral').select('*').in('publicador_nombre', (allPublishers||[]).map(p => p.nombre));
         const { data: allPrograms } = await supabase.from('programas').select('*').eq('congregation_id', congregation.id);
 

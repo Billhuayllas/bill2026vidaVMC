@@ -744,11 +744,11 @@ const RolGrupos: React.FC<RolGruposProps> = ({ isReadOnly = false }) => {
                             }
                         }
                     }).catch(err => {
-                        console.error("Error invoking getRolGruposFromTurso api:", err);
+                        console.warn("Aviso al consultar Rol de Grupos en Turso:", err);
                     });
                 }
             }).catch(moduleErr => {
-                console.error("Could not dynamic-import /lib/turso:", moduleErr);
+                console.warn("Aviso al importar módulo Turso:", moduleErr);
             });
         }
     }, [congregationId, currentCongregation]);
@@ -811,11 +811,11 @@ const RolGrupos: React.FC<RolGruposProps> = ({ isReadOnly = false }) => {
                         JSON.stringify(queryPayload),
                         new Date(localTimestamp).toISOString()
                     ).catch(err => {
-                        console.error("Turso back-sync error:", err);
+                        console.warn("Aviso de sincronización Turso:", err);
                     });
                 }
             }).catch(err => {
-                console.error("Failed to fetch turso module:", err);
+                console.warn("Aviso al cargar módulo Turso:", err);
             });
         }, 1500); // 1.5s delay of inactivity before sync to cloud database
     };
