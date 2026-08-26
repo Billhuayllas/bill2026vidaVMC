@@ -146,42 +146,58 @@
         top: 0;
         z-index: 1000;
         transition: all 0.3s ease;
-        padding: 0.5rem 0;
+        padding: 0.25rem 0;
     }
 
     .app-header__container {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 0 1rem;
+        padding: 0 0.75rem;
     }
 
     .app-header__inner {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        height: 60px;
+        min-height: 52px;
+        height: auto;
+        gap: 8px;
     }
 
     .app-header__branding {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 8px;
         cursor: pointer;
+        min-width: 0;
     }
     
     img.app-header__logo {
-        width: 40px;
-        height: 40px;
+        width: 38px;
+        height: 38px;
         border-radius: 10px;
         object-fit: cover;
         border: 2px solid var(--border-color);
+        flex-shrink: 0;
     }
 
     .app-header__title {
-        font-size: 1.1rem;
+        font-size: 0.95rem;
         font-weight: 800;
         color: var(--text-color);
         line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    @media (min-width: 640px) {
+        .app-header__title {
+            font-size: 1.1rem;
+        }
+        .app-header__inner {
+            min-height: 60px;
+        }
     }
 
     /* Navigation */
@@ -246,17 +262,36 @@
     .app-nav--mobile .app-nav__list { flex-direction: column; }
     .app-nav--mobile .app-nav__button { width: 100%; text-align: left; padding: 12px; }
 
-    .action-button {
-        width: 36px;
-        height: 36px;
-        border-radius: var(--radius-md);
-        border: 1px solid var(--border-color);
-        background: var(--card-bg-color);
-        color: var(--text-color);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
+    .action-button,
+    .app-nav__mobile-toggle {
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+        min-height: 36px !important;
+        max-width: 36px !important;
+        max-height: 36px !important;
+        border-radius: var(--radius-md) !important;
+        border: 1px solid var(--border-color) !important;
+        background: var(--card-bg-color) !important;
+        color: var(--text-color) !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        padding: 0 !important;
+        box-shadow: var(--shadow-sm) !important;
+        font-size: 1rem !important;
+        line-height: 1 !important;
+    }
+    .action-button:hover,
+    .app-nav__mobile-toggle:hover {
+        background: var(--input-bg) !important;
+        border-color: var(--primary-color) !important;
+    }
+    .action-button i,
+    .app-nav__mobile-toggle i {
+        display: inline-block !important;
+        line-height: 1 !important;
     }
 
     /* --- COMPONENTS & CARDS --- */
@@ -1013,18 +1048,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "react": "https://aistudiocdn.com/react@^19.1.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.56.1",
-    "react-dom": "https://aistudiocdn.com/react-dom@^19.1.1"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
+    <link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div id="root"></div>

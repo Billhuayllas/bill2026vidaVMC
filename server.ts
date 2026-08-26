@@ -22,8 +22,8 @@ app.use((req, res, next) => {
 });
 
 // Configurar cliente de Turso en el Servidor
-const TURSO_URL = "https://congregacion-15-de-julio-15dejulio.aws-us-east-1.turso.io";
-const TURSO_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODA1NDQxNzYsImlkIjoiMDE5ZTkwYjMtOWMwMS03MDgzLTk3OWYtNDhiZjcxOGIwNzM0IiwicmlkIjoiZGM1MDhlYTYtNTc4OS00MGM1LWEzNDItMmQ5ZDVhY2Q4MjZhIn0.kp_b_-2WU82L3Ypa_fKJ01BO0bDyBFc8dXyJ4waTDfuyBUl_OnucnOO9Eh6gVwqxGws4llbp8BqkEHZJUQknCA";
+const TURSO_URL = process.env.TURSO_URL || "https://congregacion-15-de-julio-15dejulio.aws-us-east-1.turso.io";
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN || "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODA1NDQxNzYsImlkIjoiMDE5ZTkwYjMtOWMwMS03MDgzLTk3OWYtNDhiZjcxOGIwNzM0IiwicmlkIjoiZGM1MDhlYTYtNTc4OS00MGM1LWEzNDItMmQ5ZDVhY2Q4MjZhIn0.kp_b_-2WU82L3Ypa_fKJ01BO0bDyBFc8dXyJ4waTDfuyBUl_OnucnOO9Eh6gVwqxGws4llbp8BqkEHZJUQknCA";
 
 const turso = createClient({
     url: TURSO_URL,

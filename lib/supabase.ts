@@ -1,10 +1,10 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient, createClient } from '@supabase/supabase-js';
 import { useState, useEffect } from 'react';
 
-// The Supabase script is loaded in index.html, which attaches `supabase` to the window object.
+// The Supabase script is loaded in index.html or through imported SDK
 declare global {
   interface Window {
-    supabase: {
+    supabase?: {
       createClient: (url: string, key: string) => SupabaseClient;
     };
   }
@@ -15,10 +15,14 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let supabaseInstance: SupabaseClient;
 
-if (window.supabase) {
-    supabaseInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-} else {
-    console.error("Supabase script not loaded or failed to initialize.");
+try {
+    if (typeof window !== 'undefined' && window.supabase?.createClient) {
+        supabaseInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } else {
+        supabaseInstance = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+} catch (err) {
+    console.error("Failed to initialize Supabase client:", err);
     // Provide a mock client to prevent runtime errors in components
     const mock = {
         from: () => mock,

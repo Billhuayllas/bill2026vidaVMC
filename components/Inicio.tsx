@@ -4,9 +4,26 @@ import { supabase } from '../lib/supabase';
 import { useCongregation } from '../lib/CongregationContext';
 import { useProgramData } from '../lib/useProgramData';
 import { handleOpenPrintPreview } from './programa/printUtils';
+import { 
+    Calendar, 
+    Printer, 
+    BookOpen, 
+    Users, 
+    BarChart3, 
+    Clock, 
+    Sparkles, 
+    ArrowRight, 
+    CheckCircle2, 
+    Bell, 
+    ShieldCheck, 
+    Layers,
+    CalendarCheck2,
+    Flame
+} from 'lucide-react';
 
 interface InicioProps {
     accessLabel: string | null;
+    onNavigate?: (tab: string) => void;
 }
 
 type Reminder = {
@@ -17,7 +34,7 @@ type Reminder = {
     target_group: string | null;
 };
 
-const Inicio: React.FC<InicioProps> = ({ accessLabel }) => {
+const Inicio: React.FC<InicioProps> = ({ accessLabel, onNavigate }) => {
     const { currentCongregation } = useCongregation();
     const [weeklyTasks, setWeeklyTasks] = useState<Reminder[]>([]);
     const [generalEvents, setGeneralEvents] = useState<Reminder[]>([]);
@@ -74,15 +91,11 @@ const Inicio: React.FC<InicioProps> = ({ accessLabel }) => {
                     
                     // Lógica de separación
                     if (isGlobal) {
-                        // Los globales siempre van abajo
                         generalList.push(r);
                     } else if (isForMyGroup) {
-                        // Es para mi grupo (o soy admin)
-                        // ¿Cae en esta semana?
                         if (r.event_date >= mondayStr && r.event_date <= sundayStr) {
                             weekList.push(r);
                         } else {
-                            // Si es de mi grupo pero es futuro lejano, lo ponemos en generales/futuros
                             generalList.push(r);
                         }
                     }
@@ -148,136 +161,314 @@ const Inicio: React.FC<InicioProps> = ({ accessLabel }) => {
         };
     };
 
-    const welcomeTitle = accessLabel ? `Bienvenido ${accessLabel}` : "Bienvenido Administrador";
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Buenos días';
+        if (hour < 19) return 'Buenas tardes';
+        return 'Buenas noches';
+    };
+
+    const todayFormatted = new Intl.DateTimeFormat('es-ES', { 
+        weekday: 'long', 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric' 
+    }).format(new Date());
+
+    const welcomeTitle = accessLabel ? `${getGreeting()}, ${accessLabel}` : `${getGreeting()}, Administrador`;
+
+    const quickModules = [
+        {
+            title: 'Vida y Ministerio',
+            desc: 'Programa semanal, asignaciones y gestión de participantes.',
+            icon: BookOpen,
+            tab: 'Programa',
+            color: 'from-blue-600 to-indigo-600',
+            badge: 'Reunión Semanal'
+        },
+        {
+            title: 'Informes de Predicación',
+            desc: 'Gestión de grupos, registro mensual y lista de publicadores.',
+            icon: Users,
+            tab: 'Grupo de Congregación',
+            color: 'from-amber-500 to-orange-600',
+            badge: 'Servicio'
+        },
+        {
+            title: 'Control de Asistencia',
+            desc: 'Registro de asistencia semanal y estadísticas por reunión.',
+            icon: BarChart3,
+            tab: 'Asistencia',
+            color: 'from-emerald-500 to-teal-600',
+            badge: 'Métricas'
+        },
+        {
+            title: 'Planificador & Roles',
+            desc: 'Planificación de asignaciones para ancianos y siervos.',
+            icon: CalendarCheck2,
+            tab: 'Planificador',
+            color: 'from-purple-600 to-violet-700',
+            badge: 'Organización'
+        }
+    ];
 
     return (
-        <main className="mt-6 mx-auto max-w-5xl px-4 sm:mt-10 sm:px-6 md:mt-12 lg:mt-16 lg:px-8 xl:mt-20">
-            <div className="text-center mb-10">
-                {/* Removed text-gray-900 to ensure dark mode variable takes effect */}
-                <h1 className="text-4xl tracking-tight font-extrabold sm:text-5xl md:text-6xl" style={{ color: 'var(--text-color)' }}>
-                    <span className="block xl:inline">{welcomeTitle}</span>
-                </h1>
+        <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8 animate-fade-in">
+            
+            {/* HERO DASHBOARD BANNER */}
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 text-white shadow-xl p-6 sm:p-8 md:p-10 border border-white/10">
+                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute bottom-0 left-1/3 -mb-10 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
                 
-                {/* Removed text-gray-500 to ensure dark mode variable takes effect */}
-                <p className="mt-3 max-w-md mx-auto text-base sm:text-lg md:mt-5 md:text-xl md:max-w-3xl" style={{ color: 'var(--text-color-light)' }}>
-                    {currentCongregation ? currentCongregation.name : 'Cargando congregación...'}
-                </p>
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold tracking-wide text-blue-100 border border-white/10">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                            <span className="capitalize">{todayFormatted}</span>
+                        </div>
+                        
+                        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-white leading-tight drop-shadow-sm">
+                            {welcomeTitle}
+                        </h1>
+                        
+                        <p className="text-sm sm:text-base text-blue-100/90 font-medium max-w-xl flex items-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+                            {currentCongregation ? currentCongregation.name : 'Panel de Control Teocrático'}
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        {onNavigate && (
+                            <button
+                                onClick={() => onNavigate('Programa')}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-slate-900 hover:bg-blue-50 text-sm font-bold shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-95"
+                            >
+                                <BookOpen className="w-4 h-4 text-blue-600" />
+                                <span>Ver Programa</span>
+                            </button>
+                        )}
+                        {targetProgram && (
+                            <button
+                                onClick={handlePrint}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white backdrop-blur-md text-sm font-bold border border-white/20 transition-all duration-200 cursor-pointer active:scale-95"
+                            >
+                                <Printer className="w-4 h-4 text-white" />
+                                <span>Imprimir</span>
+                            </button>
+                        )}
+                    </div>
+                </div>
             </div>
 
-            {loading || loadingPrograms ? (
-                <div style={{ textAlign: 'center', color: 'var(--text-color-light)', padding: '40px' }}>
-                    <i className="fas fa-spinner fa-spin fa-2x"></i>
+            {/* KPI STATS ROW */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Programa Activo</span>
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                            <Calendar className="w-4 h-4" />
+                        </div>
+                    </div>
+                    <div className="mt-2 font-bold text-slate-800 dark:text-white text-sm sm:text-base truncate">
+                        {targetProgram ? `Semana ${targetProgram.week_id}` : 'Al día'}
+                    </div>
+                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 mt-1">
+                        <CheckCircle2 className="w-3 h-3" /> Disponible para impresión
+                    </div>
                 </div>
-            ) : (
-                <div className="max-w-4xl mx-auto space-y-10">
+
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Asignaciones</span>
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                            <Clock className="w-4 h-4" />
+                        </div>
+                    </div>
+                    <div className="mt-2 font-black text-slate-800 dark:text-white text-xl sm:text-2xl">
+                        {weeklyTasks.length}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        Programadas esta semana
+                    </div>
+                </div>
+
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Avisos & Eventos</span>
+                        <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                            <Bell className="w-4 h-4" />
+                        </div>
+                    </div>
+                    <div className="mt-2 font-black text-slate-800 dark:text-white text-xl sm:text-2xl">
+                        {generalEvents.length}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        Próximas actividades
+                    </div>
+                </div>
+
+                <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Seguridad & Red</span>
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                            <ShieldCheck className="w-4 h-4" />
+                        </div>
+                    </div>
+                    <div className="mt-2 font-bold text-slate-800 dark:text-white text-sm sm:text-base truncate">
+                        {accessLabel ? accessLabel : 'Super Admin'}
+                    </div>
+                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 mt-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Base de datos en línea
+                    </div>
+                </div>
+            </div>
+
+            {/* SECCIÓN PRINCIPAL: PROGRAMA HERO CARD */}
+            {targetProgram && (
+                <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-blue-500/20 dark:border-blue-400/20 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <div className="absolute top-0 left-0 h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500"></div>
                     
-                    {/* SECCIÓN 0: PROGRAMA DE LA SEMANA */}
-                    {targetProgram && (
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-2 border-slate-900 dark:border-slate-700 overflow-hidden mb-8 transition-transform hover:scale-[1.01] animate-fade-in-up">
-                            <div className="p-5 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                                <div className="flex-1 text-left">
-                                    <span className="text-xs uppercase tracking-wider font-extrabold text-blue-600 dark:text-blue-400">
-                                        <i className="fas fa-calendar-day mr-1"></i> Programa de la Semana Actual
-                                    </span>
-                                    <h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white mt-1 leading-tight">
-                                        {targetProgram.data?.titulo || `Semana del ${targetProgram.week_id}`}
-                                    </h3>
+                    <div className="p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                        <div className="space-y-3 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-wider">
+                                    <Calendar className="w-3.5 h-3.5" /> Programa de la Semana Actual
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold">
+                                    Semana {targetProgram.week_id}
+                                </span>
+                            </div>
+
+                            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                                {targetProgram.data?.titulo || `Semana del ${targetProgram.week_id}`}
+                            </h2>
+
+                            {targetProgram.data?.lecturaBiblica && (
+                                <div className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                                    <BookOpen className="w-4 h-4" />
+                                    <span>Lectura bíblica: {targetProgram.data.lecturaBiblica}</span>
                                 </div>
-                                
-                                <div className="flex items-center gap-3 w-full md:w-auto shrink-0 mt-2 md:mt-0">
-                                    <button
-                                        onClick={handlePrint}
-                                        className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl text-sm font-bold shadow-sm cursor-pointer transition-colors"
-                                    >
-                                        <i className="fas fa-print text-xs"></i> Imprimir / PDF
-                                    </button>
+                            )}
+
+                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl">
+                                Consulta la asignación de partes, salas auxiliares, discursos, tesoros y vida cristiana para la reunión de esta semana.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                            {onNavigate && (
+                                <button
+                                    onClick={() => onNavigate('Programa')}
+                                    className="flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white text-sm font-bold transition-all duration-200 cursor-pointer active:scale-95"
+                                >
+                                    <span>Ver Detalles</span>
+                                    <ArrowRight className="w-4 h-4" />
+                                </button>
+                            )}
+                            
+                            <button
+                                onClick={handlePrint}
+                                className="flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-bold shadow-md hover:shadow-lg shadow-blue-500/20 transition-all duration-200 cursor-pointer active:scale-95"
+                            >
+                                <Printer className="w-4 h-4" />
+                                <span>Imprimir / PDF</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* SECCIÓN DE ACCESOS RÁPIDOS (DASHBOARD GRID) */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-lg sm:text-xl font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                        <Layers className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <span>Módulos de Gestión</span>
+                    </h2>
+                    <span className="text-xs text-slate-400 font-medium hidden sm:inline">Selecciona una sección para acceder</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {quickModules.map((mod, idx) => {
+                        const IconComp = mod.icon;
+                        return (
+                            <div
+                                key={idx}
+                                onClick={() => onNavigate && onNavigate(mod.tab)}
+                                className="group relative overflow-hidden bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl p-5 border border-slate-200/80 dark:border-slate-700/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col justify-between"
+                            >
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${mod.color} text-white flex items-center justify-center shadow-md shadow-blue-500/10 group-hover:scale-110 transition-transform`}>
+                                            <IconComp className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                            {mod.badge}
+                                        </span>
+                                    </div>
+                                    <h3 className="font-bold text-slate-900 dark:text-white text-base group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                        {mod.title}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        {mod.desc}
+                                    </p>
+                                </div>
+
+                                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between text-xs font-bold text-blue-600 dark:text-blue-400">
+                                    <span>Acceder</span>
+                                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </div>
-                        </div>
-                    )}
-                    
-                    {/* SECCIÓN 1: TAREAS DE ESTA SEMANA (ESPECÍFICAS) */}
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* SECCIÓN DE TAREAS Y ASIGNACIONES */}
+            {loading ? (
+                <div className="text-center py-12 text-slate-400">
+                    <div className="inline-block animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+                    <p className="mt-2 text-sm">Cargando datos del panel...</p>
+                </div>
+            ) : (
+                <div className="space-y-8">
+                    {/* TAREAS DE LA SEMANA */}
                     {weeklyTasks.length > 0 && (
-                        <div className="animate-fade-in-up">
-                            <h2 style={{ fontSize: '1.4rem', fontWeight: '800', color: '#1e40af', marginBottom: '15px', display:'flex', alignItems:'center', gap:'10px' }}>
-                                <i className="fas fa-calendar-week text-blue-600"></i> Asignaciones de esta Semana
-                            </h2>
-                            <div style={{ display: 'grid', gap: '15px' }}>
+                        <div className="space-y-4 animate-fade-in-up">
+                            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
+                                <h2 className="text-lg sm:text-xl font-extrabold text-blue-700 dark:text-blue-400 flex items-center gap-2">
+                                    <Flame className="w-5 h-5 text-blue-600" />
+                                    <span>Asignaciones de esta Semana</span>
+                                </h2>
+                                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                                    {weeklyTasks.length} pendiente{weeklyTasks.length > 1 ? 's' : ''}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {weeklyTasks.map(r => {
                                     const { dayName, dayNum, monthName } = formatDate(r.event_date);
                                     return (
-                                        <div key={r.id} style={{ 
-                                            background: 'linear-gradient(to right, #eff6ff, #ffffff)', 
-                                            borderLeft: '5px solid #2563eb', 
-                                            borderRadius: '8px', 
-                                            padding: '20px', 
-                                            boxShadow: '0 4px 6px rgba(37, 99, 235, 0.1)',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            justifyContent: 'center'
-                                        }}>
-                                            <div style={{ textTransform: 'uppercase', fontSize: '0.85rem', color: '#2563eb', fontWeight: '700', marginBottom: '5px' }}>
-                                                {dayName}, {dayNum} de {monthName}
+                                        <div 
+                                            key={r.id}
+                                            className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl p-5 border-l-4 border-blue-600 border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-3"
+                                        >
+                                            <div>
+                                                <div className="text-[11px] font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">
+                                                    {dayName}, {dayNum} de {monthName}
+                                                </div>
+                                                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                                                    {r.title}
+                                                </h3>
+                                                {r.description && (
+                                                    <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                                        {r.description}
+                                                    </p>
+                                                )}
                                             </div>
-                                            <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: '#1e3a8a' }}>
-                                                {r.title}
-                                            </h3>
-                                            {r.description && (
-                                                <p style={{ margin: '8px 0 0 0', color: '#4b5563', fontSize: '1.1rem' }}>{r.description}</p>
-                                            )}
-                                            {!accessLabel && r.target_group && (
-                                                <span style={{ marginTop: '10px', alignSelf: 'flex-start', fontSize: '0.75rem', background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '4px' }}>
-                                                    Para: {r.target_group}
-                                                </span>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
 
-                    {/* SECCIÓN 2: ANUNCIOS GENERALES Y FUTUROS */}
-                    {generalEvents.length > 0 && (
-                        <div className="animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-                            <h2 style={{ fontSize: '1.3rem', fontWeight: '700', color: '#4b5563', marginBottom: '15px', borderBottom: '2px solid #e5e7eb', paddingBottom: '10px' }}>
-                                <i className="fas fa-bullhorn text-gray-500 mr-2"></i> Anuncios y Próximos Eventos
-                            </h2>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-                                {generalEvents.map(r => {
-                                    const { dayName, dayNum, monthName } = formatDate(r.event_date);
-                                    const isGlobal = !r.target_group;
-                                    
-                                    return (
-                                        <div key={r.id} style={{ 
-                                            backgroundColor: 'var(--card-bg-color)', 
-                                            borderRadius: '12px', 
-                                            overflow: 'hidden', 
-                                            boxShadow: '0 2px 5px rgba(0,0,0,0.05)', 
-                                            border: '1px solid var(--border-color)', 
-                                            display: 'flex', 
-                                            flexDirection: 'column' 
-                                        }}>
-                                            <div style={{ 
-                                                backgroundColor: isGlobal ? 'var(--secondary-color)' : '#64748b', 
-                                                color: 'white', 
-                                                padding: '8px 15px', 
-                                                fontWeight: 'bold', 
-                                                textTransform: 'capitalize', 
-                                                display: 'flex', 
-                                                justifyContent: 'space-between', 
-                                                alignItems: 'center',
-                                                fontSize: '0.9rem'
-                                            }}>
-                                                <span>{dayNum} de {monthName}</span>
-                                                {isGlobal && <span style={{ fontSize: '0.7rem', background:'rgba(0,0,0,0.2)', padding:'2px 6px', borderRadius:'4px' }}>GLOBAL</span>}
-                                            </div>
-                                            <div style={{ padding: '15px', flex: 1 }}>
-                                                <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: 'var(--text-color)', fontWeight: '700' }}>{r.title}</h3>
-                                                {r.description && <p style={{ margin: 0, color: 'var(--text-color-light)', fontSize: '0.9rem', lineHeight: '1.4' }}>{r.description}</p>}
-                                            </div>
-                                            {!isGlobal && !accessLabel && r.target_group && (
-                                                <div style={{ padding: '5px 15px', borderTop: '1px solid var(--border-color)', fontSize: '0.75rem', color: 'var(--text-color-light)', backgroundColor: 'var(--light-gray)' }}>
+                                            {!accessLabel && r.target_group && (
+                                                <div className="self-start mt-2 text-[10px] font-bold px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
                                                     Grupo: {r.target_group}
                                                 </div>
                                             )}
@@ -288,17 +479,65 @@ const Inicio: React.FC<InicioProps> = ({ accessLabel }) => {
                         </div>
                     )}
 
-                    {weeklyTasks.length === 0 && generalEvents.length === 0 && !targetProgram && (
-                        <div style={{ textAlign: 'center', padding: '40px', backgroundColor: 'var(--light-gray)', borderRadius: '12px', margin: '0 auto', maxWidth: '600px' }}>
-                            <i className="fas fa-check-circle" style={{ fontSize: '3rem', color: 'var(--positive-color)', marginBottom: '15px' }}></i>
-                            <p style={{ color: 'var(--text-color-light)', fontSize: '1.1rem' }}>No hay recordatorios pendientes por el momento.</p>
+                    {/* ANUNCIOS Y EVENTOS GENERALES */}
+                    {generalEvents.length > 0 && (
+                        <div className="space-y-4 animate-fade-in-up">
+                            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
+                                <h2 className="text-lg sm:text-xl font-extrabold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                    <Bell className="w-5 h-5 text-amber-500" />
+                                    <span>Anuncios y Próximos Eventos</span>
+                                </h2>
+                                <span className="text-xs font-semibold text-slate-500">
+                                    {generalEvents.length} programado{generalEvents.length > 1 ? 's' : ''}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {generalEvents.map(r => {
+                                    const { dayName, dayNum, monthName } = formatDate(r.event_date);
+                                    const isGlobal = !r.target_group;
+                                    
+                                    return (
+                                        <div 
+                                            key={r.id}
+                                            className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl overflow-hidden border border-slate-200/80 dark:border-slate-700/80 shadow-sm hover:shadow-md transition-all flex flex-col"
+                                        >
+                                            <div className={`px-4 py-2.5 text-white text-xs font-bold flex items-center justify-between ${isGlobal ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-slate-700'}`}>
+                                                <span className="capitalize">{dayNum} de {monthName} ({dayName})</span>
+                                                {isGlobal && (
+                                                    <span className="text-[10px] bg-black/20 px-2 py-0.5 rounded font-extrabold tracking-wider">GLOBAL</span>
+                                                )}
+                                            </div>
+
+                                            <div className="p-4 flex-1 flex flex-col justify-between">
+                                                <div>
+                                                    <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+                                                        {r.title}
+                                                    </h3>
+                                                    {r.description && (
+                                                        <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-400 line-clamp-3">
+                                                            {r.description}
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                {!isGlobal && !accessLabel && r.target_group && (
+                                                    <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-700 text-[11px] text-slate-500 font-medium">
+                                                        Grupo asignado: <span className="font-bold text-slate-700 dark:text-slate-300">{r.target_group}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
             )}
-
-        </main>
+        </div>
     );
 };
 
 export default Inicio;
+

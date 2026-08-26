@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Users, LayoutDashboard, FolderArchive, ShieldAlert } from 'lucide-react';
 import { useGroupManager } from './congregation/useGroupManager';
 import { GroupMember, MinistryReport } from './congregation/types';
 import StatCards from './congregation/StatCards';
@@ -195,37 +196,65 @@ const GrupoCongregacion: React.FC<GrupoCongregacionProps> = ({ isReadOnly = fals
     const isMonthLocked = members.length > 0 && members.every(m => reports[m.publicador_nombre]?.locked);
 
     return (
-        <div className="container mx-auto px-4 py-8 group-container relative bg-[var(--bg-color)] min-h-screen">
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800', textAlign: 'center', marginBottom: '1rem', color: 'var(--primary-color)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Gestión del Grupo {isReadOnly && <span style={{fontSize:'0.5em', verticalAlign:'middle', backgroundColor:'#ef4444', color:'white', padding:'2px 6px', borderRadius:'4px'}}>Solo Lectura</span>}
-            </h1>
+        <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 relative min-h-[calc(100vh-80px)] transition-all">
+            {/* Top Navigation / Section Header */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
+                <div className="text-center sm:text-left">
+                    <div className="flex items-center justify-center sm:justify-start gap-2.5">
+                        <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                            Gestión de Grupo y Congregación
+                        </h1>
+                        {isReadOnly && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                Solo Lectura
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                        Registro mensual de actividad, informes ministeriales y fichas de servicio
+                    </p>
+                </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex justify-center mb-8 px-2 max-w-full">
-                <div className="inline-flex flex-wrap justify-center bg-slate-100 rounded-2xl sm:rounded-full p-1 gap-1 max-w-full">
+                {/* Segmented View Switcher */}
+                <div className="inline-flex items-center bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-sm p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
                     {(navItems.includes('Grupo de Congregación') || navItems.includes('↳ Mi Grupo') || restrictedGroupId) && (
                         <button 
                             onClick={() => setViewMode('single')}
-                            className={`px-4 py-2 rounded-xl sm:rounded-full text-xs sm:text-sm font-bold transition-all ${viewMode === 'single' ? 'bg-blue-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                                viewMode === 'single' 
+                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
                         >
-                            Mi Grupo
+                            <Users className="w-4 h-4" />
+                            <span>Mi Grupo</span>
                         </button>
                     )}
                     {(navItems.includes('Grupo de Congregación') || navItems.includes('↳ Resumen General')) && !restrictedGroupId && (
                         <button 
                             onClick={() => setViewMode('global')}
-                            className={`px-4 py-2 rounded-xl sm:rounded-full text-xs sm:text-sm font-bold transition-all ${viewMode === 'global' ? 'bg-blue-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                                viewMode === 'global' 
+                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
                         >
-                            <span className="hidden sm:inline">Resumen</span> Congregación
+                            <LayoutDashboard className="w-4 h-4" />
+                            <span>Resumen General</span>
                         </button>
                     )}
                     
                     {(navItems.includes('Grupo de Congregación') || navItems.includes('↳ Lista de Publicadores')) && (
                         <button 
                             onClick={() => setViewMode('cards')}
-                            className={`px-4 py-2 rounded-xl sm:rounded-full text-xs sm:text-sm font-bold transition-all ${['publishers', 'cards'].includes(viewMode) ? 'bg-blue-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                                ['publishers', 'cards'].includes(viewMode) 
+                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
                         >
-                            Publicadores
+                            <FolderArchive className="w-4 h-4" />
+                            <span>Publicadores / Fichas</span>
                         </button>
                     )}
                 </div>

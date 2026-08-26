@@ -4,8 +4,39 @@ import { supabase } from '../../lib/supabase';
 import { useCongregation } from '../../lib/CongregationContext';
 import { isReportAuxiliar } from './utils';
 import { BulkCardsModal } from './BulkCardsModal';
-
-declare const html2pdf: any;
+import html2pdf from 'html2pdf.js';
+import { 
+    Users, 
+    ShieldCheck, 
+    Award, 
+    Compass, 
+    Star, 
+    UserX, 
+    Search, 
+    X, 
+    FileText, 
+    IdCard, 
+    Share2, 
+    Lock, 
+    Unlock, 
+    Layers, 
+    Phone, 
+    ExternalLink, 
+    Edit2, 
+    Trash2, 
+    Check, 
+    Filter, 
+    ArrowUp, 
+    ArrowDown, 
+    Plus, 
+    RefreshCw, 
+    CheckCircle2, 
+    AlertCircle,
+    Download,
+    Eye,
+    ChevronDown,
+    Loader2
+} from 'lucide-react';
 
 interface GlobalPublishersListProps {
     groups: Group[];
@@ -24,6 +55,8 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
     const [isEditMode, setIsEditMode] = useState<boolean>(false);
     const [filterType, setFilterType] = useState<string>('todos');
     const [showBulkCardsModal, setShowBulkCardsModal] = useState<boolean>(false);
+    const [copiedShare, setCopiedShare] = useState<boolean>(false);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
 
     // State for group management
     const [showGroupModal, setShowGroupModal] = useState<boolean>(false);
@@ -210,7 +243,7 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
           });
     }, [masterPublishers, globalMembers, groups, searchTerm]);
 
-    // Calcular estadísticas
+    // Calcular estadísticas de nombramientos
     const stats = useMemo(() => {
         let ancianos = 0;
         let siervos = 0;
@@ -229,6 +262,28 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
 
         return { ancianos, siervos, precursoresRegulares, precursoresEspeciales, inactivos };
     }, [baseData]);
+
+    // Contadores por grupo
+    const groupCounts = useMemo(() => {
+        const counts: Record<string, number> = {
+            unassigned: 0,
+            estudiante_vmt: 0
+        };
+        groups.forEach(g => {
+            counts[String(g.id)] = 0;
+        });
+        baseData.forEach(row => {
+            const gid = String(row.currentGroupId);
+            if (counts[gid] !== undefined) {
+                counts[gid]++;
+            } else if (gid === 'unassigned') {
+                counts.unassigned++;
+            } else if (gid === 'estudiante_vmt') {
+                counts.estudiante_vmt++;
+            }
+        });
+        return counts;
+    }, [baseData, groups]);
 
     const serviceYearReportsByPublisher = useMemo(() => {
         const dict: Record<string, any[]> = {};
@@ -262,8 +317,6 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
             const parts = startYm.trim().split('-');
             if (parts.length === 2 && parts[0].length === 4) {
                // Assuming it's already YYYY-MM
-            } else {
-               // Fallback just in case it's wrong format, but we won't fix perfectly here without utilities
             }
         }
         
@@ -340,6 +393,17 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
 
     const data = useMemo(() => {
         const filtered = baseData.filter(item => {
+            if (filterType === 'todos') return true;
+
+            // Filtros de Grupo
+            if (filterType === 'grupo:unassigned') return item.currentGroupId === 'unassigned';
+            if (filterType === 'grupo:estudiante_vmt') return item.currentGroupId === 'estudiante_vmt';
+            if (filterType.startsWith('grupo:')) {
+                const targetGid = filterType.replace('grupo:', '');
+                return String(item.currentGroupId) === String(targetGid);
+            }
+
+            // Filtros de Nombramiento / Rol
             const lowerRol = (item.role || '').toLowerCase();
             if (filterType === 'anciano') return lowerRol.includes('anciano');
             if (filterType === 'siervo') return lowerRol.includes('siervo ministerial');
@@ -414,11 +478,14 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
         }
     };
 
-    const handleDownloadFilteredListPdf = () => {
+    const handleDownloadFilteredListPdf = async () => {
         if (!data || data.length === 0) {
             alert('No hay publicadores en el filtro actual para descargar.');
             return;
         }
+
+        if (isGeneratingPdf) return;
+        setIsGeneratingPdf(true);
 
         const currentDate = new Date();
         const curM = currentDate.getMonth() + 1;
@@ -443,6 +510,11 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
         } else if (filterType === 'inactivo') {
             title = 'REGISTRO DE PUBLICADORES INACTIVOS';
             filterSlug = 'Inactivos';
+        } else if (filterType.startsWith('grupo:')) {
+            const gid = filterType.replace('grupo:', '');
+            const gName = gid === 'unassigned' ? 'Sin Grupo' : gid === 'estudiante_vmt' ? 'Escuela VMT' : groups.find(g => String(g.id) === gid)?.nombre || 'Grupo';
+            title = `PADRÓN DE PUBLICADORES - ${gName.toUpperCase()}`;
+            filterSlug = `Grupo_${gName.replace(/\s+/g, '_')}`;
         }
 
         if (searchTerm) {
@@ -493,7 +565,7 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                 <tr style="border-bottom: 1px solid #e2e8f0; height: 26px; ${index % 2 === 1 ? 'background-color: #f8fafc;' : ''}">
                     <td style="padding: 4px 6px; text-align: center; font-size: 8.5pt; color: #475569; font-weight: bold; border-right: 1px solid #cbd5e1;">${index + 1}</td>
                     <td style="padding: 4px 8px; font-size: 9pt; color: #0f172a; font-weight: bold; border-right: 1px solid #cbd5e1;">${name}</td>
-                    <td style="padding: 4px 8px; font-size: 8.5pt; color: #334155; border-right: 1px solid #cbd5e1;">${row.role}</td>
+                    <td style="padding: 4px 8px; font-size: 8.5pt; color: #334155; border-right: 1px solid #cbd5e1;">${row.role || 'Publicador'}</td>
                     <td style="padding: 4px 6px; text-align: center; font-size: 8.5pt; color: #334155; border-right: 1px solid #cbd5e1;">${groupName}</td>
                     <td style="padding: 4px 6px; text-align: center; font-size: 8.5pt; color: #475569; border-right: ${isPioneerList ? '1px solid #cbd5e1;' : 'none;'}">${phone}</td>
                     ${isPioneerList ? `
@@ -600,314 +672,270 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                 <!-- Footer notes -->
                 <div style="margin-top: 15px; font-size: 7.5pt; color: #64748b; display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; padding-top: 8px;">
                     <div>Documento generado para uso interno de la congregación &bull; Registro confidencial</div>
-                    <div>Página 1</div>
+                    <div>Total registros: ${data.length}</div>
                 </div>
             </div>
         `;
 
-        const printStyles = `
-            @page {
-                size: portrait;
-                margin: 8mm 10mm;
-            }
-            body {
-                margin: 0;
-                padding: 0;
-                background: #fff;
-                color: #000;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-        `;
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        container.style.top = '0';
+        container.style.width = '794px';
+        container.style.backgroundColor = '#ffffff';
+        container.style.color = '#0f172a';
+        container.innerHTML = tableHtml;
+        document.body.appendChild(container);
 
-        if (typeof html2pdf !== 'undefined') {
-            const container = document.createElement('div');
-            container.style.position = 'absolute';
-            container.style.left = '-9999px';
-            container.style.top = '0';
-            container.style.width = '794px';
-            container.style.backgroundColor = '#ffffff';
-
-            const styleEl = document.createElement('style');
-            styleEl.innerHTML = printStyles;
-            container.appendChild(styleEl);
-
-            const contentWrapper = document.createElement('div');
-            contentWrapper.innerHTML = tableHtml;
-            container.appendChild(contentWrapper);
-            document.body.appendChild(container);
+        try {
+            // Small pause to guarantee full layout calculation
+            await new Promise(resolve => setTimeout(resolve, 80));
 
             const congSlug = congName.replace(/\s+/g, '_');
+            const fileName = `Lista_${filterSlug}_${congSlug}_${serviceYear}.pdf`;
             const opt = {
                 margin: [8, 8, 8, 8],
-                filename: `Lista_${filterSlug}_${congSlug}_${serviceYear}.pdf`,
+                filename: fileName,
                 image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, logging: false },
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    windowWidth: 794
+                },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
                 pagebreak: { mode: ['css', 'legacy'] }
             };
 
-            html2pdf().from(container).set(opt).save().then(() => {
-                document.body.removeChild(container);
-            }).catch((err: any) => {
-                console.error("Error saving PDF:", err);
-                document.body.removeChild(container);
-            });
-        } else {
-            const printWin = window.open('', '_blank');
-            if (printWin) {
-                printWin.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>${title}</title>
-                        <style>${printStyles}</style>
-                    </head>
-                    <body>
-                        ${tableHtml}
-                    </body>
-                    </html>
-                `);
-                printWin.document.close();
-                printWin.focus();
-                setTimeout(() => {
-                    printWin.print();
-                }, 400);
+            const pdfFn = (html2pdf as any) || (window as any).html2pdf;
+            if (typeof pdfFn === 'function') {
+                await pdfFn().set(opt).from(container).save();
+            } else {
+                const mod = await import('html2pdf.js');
+                const h2p = (mod as any).default || mod;
+                await h2p().set(opt).from(container).save();
             }
+        } catch (err) {
+            console.error("Error saving PDF:", err);
+            alert("Hubo un error al generar el archivo PDF. Por favor verifique e intente nuevamente.");
+        } finally {
+            if (document.body.contains(container)) {
+                document.body.removeChild(container);
+            }
+            setIsGeneratingPdf(false);
         }
     };
 
       return (
-        <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-sm border border-slate-100 max-w-[1000px] mx-auto">
-            <div className="flex flex-col gap-3 sm:gap-6 mb-3 sm:mb-6">
-                {/* Row 1: Header title on the left, action buttons on the right */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-2 sm:pb-4 border-b border-slate-100">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                            <i className="fas fa-users text-sm sm:text-lg"></i>
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl p-4 sm:p-7 shadow-xl border border-slate-200/80 dark:border-slate-800/80 max-w-[1100px] mx-auto transition-all">
+            <div className="flex flex-col gap-5 mb-6">
+                {/* Header title & Main Action Toolbar */}
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-5 border-b border-slate-200/80 dark:border-slate-800/80">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
+                            <Users className="w-6 h-6" />
                         </div>
                         <div>
-                            <h2 className="text-base sm:text-xl font-extrabold text-slate-800 tracking-tight">Publicadores</h2>
-                            <p className="hidden xs:block text-[10px] sm:text-xs text-slate-500 font-medium">Gestión grupal y padrón general de precursores</p>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Publicadores</h2>
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
+                                    {baseData.length} Total
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Padrón general, nombramientos y registro de actividad</p>
                         </div>
                     </div>
                     
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:justify-start md:justify-end">
+                    {/* Action buttons toolbar */}
+                    <div className="flex items-center gap-2 flex-wrap">
                         <button
                             onClick={handleDownloadFilteredListPdf}
-                            className="text-[11px] sm:text-xs px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl cursor-pointer font-bold bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 transition-all duration-200 flex items-center gap-1 sm:gap-1.5 shadow-sm"
+                            disabled={isGeneratingPdf}
+                            className="px-3.5 py-2 rounded-xl cursor-pointer font-bold text-xs bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Descargar lista filtrada en formato PDF"
                         >
-                            <i className="fas fa-file-alt text-[10px] sm:text-xs text-indigo-600"></i>
-                            <span>Descargar Lista (PDF)</span>
+                            {isGeneratingPdf ? (
+                                <Loader2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-spin" />
+                            ) : (
+                                <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            )}
+                            <span>{isGeneratingPdf ? 'Generando PDF...' : 'Descargar Lista (PDF)'}</span>
                         </button>
+
                         <button
                             onClick={() => setShowBulkCardsModal(true)}
-                            className="text-[11px] sm:text-xs px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl cursor-pointer font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-all duration-200 flex items-center gap-1 sm:gap-1.5 shadow-sm"
+                            className="px-3.5 py-2 rounded-xl cursor-pointer font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-700 border border-indigo-600 transition-all duration-200 flex items-center gap-2 shadow-sm shadow-indigo-600/20 hover:shadow active:scale-95"
                             title="Descargar tarjetas S-21 masivas en PDF"
                         >
-                            <i className="fas fa-id-card text-[10px] sm:text-xs text-indigo-600"></i>
+                            <IdCard className="w-4 h-4" />
                             <span>Tarjetas S-21 (PDF)</span>
                         </button>
+
+                        {currentCongregation && (
+                            <button
+                                onClick={() => {
+                                    const shareUrl = `${window.location.origin}${window.location.pathname}?view=publisher_report&congregation_id=${currentCongregation.id}`;
+                                    navigator.clipboard.writeText(shareUrl).then(() => {
+                                        setCopiedShare(true);
+                                        setTimeout(() => setCopiedShare(false), 2500);
+                                    }).catch(() => {
+                                        alert('Enlace: ' + shareUrl);
+                                    });
+                                }}
+                                className={`px-3 py-2 rounded-xl font-bold text-xs border transition-all duration-200 flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                                    copiedShare
+                                    ? 'bg-emerald-600 text-white border-emerald-600'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                                }`}
+                                title="Compartir padrón de precursores y fichas S-21"
+                            >
+                                {copiedShare ? <CheckCircle2 className="w-4 h-4 text-white" /> : <Share2 className="w-4 h-4 text-slate-500" />}
+                                <span>{copiedShare ? '¡Copiado!' : 'Compartir'}</span>
+                            </button>
+                        )}
+
                         {!isReadOnly && (
                             <button
                                 onClick={handleToggleEditMode}
-                                className={`text-[11px] sm:text-xs px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl cursor-pointer font-bold border transition-all duration-200 flex items-center gap-1 sm:gap-1.5 shadow-sm ${
+                                className={`px-3 py-2 rounded-xl cursor-pointer font-bold text-xs border transition-all duration-200 flex items-center gap-1.5 shadow-sm active:scale-95 ${
                                     isEditMode 
-                                    ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600' 
-                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
+                                    ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20' 
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 hover:text-slate-900'
                                 }`}
                             >
-                                <i className={`fas ${isEditMode ? 'fa-unlock' : 'fa-lock'} text-[10px] sm:text-xs`}></i>
+                                {isEditMode ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
                                 <span>{isEditMode ? 'Edición Activa' : 'Modo Edición'}</span>
                             </button>
                         )}
+
                         {isEditMode && (
                             <button
                                 onClick={() => setShowGroupModal(true)}
-                                className="text-[11px] sm:text-xs px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl cursor-pointer font-bold bg-indigo-600 border border-indigo-700 text-white hover:bg-indigo-700 transition-all duration-200 flex items-center gap-1 sm:gap-1.5 shadow-sm"
+                                className="px-3.5 py-2 rounded-xl cursor-pointer font-bold text-xs bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 transition-all duration-200 flex items-center gap-1.5 shadow-sm active:scale-95"
                             >
-                                <i className="fas fa-layer-group text-[10px] sm:text-xs"></i>
+                                <Layers className="w-3.5 h-3.5" />
                                 <span>Gestionar Grupos</span>
                             </button>
                         )}
                     </div>
                 </div>
 
-                {/* Row 2: Appointment/Status filter badges with independent flex row */}
-                <div>
-                    <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1.5 sm:mb-2.5">Filtrar por nombramiento/estado:</div>
-                    <div 
-                        className="flex overflow-x-auto gap-2 items-stretch w-full pb-1.5 sm:pb-0"
-                        style={{
-                            scrollbarWidth: 'none',
-                            msOverflowStyle: 'none',
-                            WebkitOverflowScrolling: 'touch'
-                        }}
-                    >
-                        <div 
-                            onClick={() => setFilterType(filterType === 'anciano' ? 'todos' : 'anciano')}
-                            className={`flex-shrink-0 sm:flex-1 min-w-[76px] sm:min-w-[125px] cursor-pointer rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-center transition-all duration-200 shadow-sm border flex flex-col justify-between ${
-                                filterType === 'anciano' 
-                                ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500/10' 
-                                : 'bg-slate-50 hover:bg-blue-50/50 border-slate-100 hover:border-blue-200'
-                            }`}
-                            style={{ opacity: (filterType !== 'todos' && filterType !== 'anciano') ? 0.6 : 1 }}
-                        >
-                            <div className="flex items-center justify-center gap-1 text-[8px] sm:text-[10px] uppercase font-bold tracking-wider text-blue-700">
-                                <i className="fas fa-user-tie text-[9px] sm:text-[10px]"></i>
-                                <span className="hidden xs:inline">Ancianos</span>
-                                <span className="xs:hidden">Anc.</span>
-                            </div>
-                            <div className="text-xs sm:text-lg font-extrabold text-blue-600 mt-0.5 sm:mt-1">{stats.ancianos}</div>
-                        </div>
-
-                        <div 
-                            onClick={() => setFilterType(filterType === 'siervo' ? 'todos' : 'siervo')}
-                            className={`flex-shrink-0 sm:flex-1 min-w-[76px] sm:min-w-[125px] cursor-pointer rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-center transition-all duration-200 shadow-sm border flex flex-col justify-between ${
-                                filterType === 'siervo' 
-                                ? 'bg-teal-50 border-teal-500 ring-2 ring-teal-500/10' 
-                                : 'bg-slate-50 hover:bg-teal-50/50 border-slate-100 hover:border-teal-200'
-                            }`}
-                            style={{ opacity: (filterType !== 'todos' && filterType !== 'siervo') ? 0.6 : 1 }}
-                        >
-                            <div className="flex items-center justify-center gap-1 text-[8px] sm:text-[10px] uppercase font-bold tracking-wider text-teal-700">
-                                <i className="fas fa-hands-helping text-[9px] sm:text-[10px]"></i>
-                                <span className="hidden xs:inline">Siervos M.</span>
-                                <span className="xs:hidden">Siervos</span>
-                            </div>
-                            <div className="text-xs sm:text-lg font-extrabold text-teal-600 mt-0.5 sm:mt-1">{stats.siervos}</div>
-                        </div>
-
-                        <div 
-                            onClick={() => setFilterType(filterType === 'precursor regular' ? 'todos' : 'precursor regular')}
-                            className={`flex-shrink-0 sm:flex-1 min-w-[76px] sm:min-w-[125px] cursor-pointer rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-center transition-all duration-200 shadow-sm border flex flex-col justify-between ${
-                                filterType === 'precursor regular' 
-                                ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-500/10' 
-                                : 'bg-slate-50 hover:bg-amber-50/50 border-slate-100 hover:border-amber-200'
-                            }`}
-                            style={{ opacity: (filterType !== 'todos' && filterType !== 'precursor regular') ? 0.6 : 1 }}
-                        >
-                            <div className="flex items-center justify-center gap-1 text-[8px] sm:text-[10px] uppercase font-bold tracking-wider text-amber-700">
-                                <i className="fas fa-route text-[9px] sm:text-[10px]"></i>
-                                <span className="hidden xs:inline">Prec. Reg.</span>
-                                <span className="xs:hidden">P. Reg.</span>
-                            </div>
-                            <div className="text-xs sm:text-lg font-extrabold text-amber-600 mt-0.5 sm:mt-1">{stats.precursoresRegulares}</div>
-                        </div>
-
-                        <div 
-                            onClick={() => setFilterType(filterType === 'precursor especial' ? 'todos' : 'precursor especial')}
-                            className={`flex-shrink-0 sm:flex-1 min-w-[76px] sm:min-w-[125px] cursor-pointer rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-center transition-all duration-200 shadow-sm border flex flex-col justify-between ${
-                                filterType === 'precursor especial' 
-                                ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-500/15' 
-                                : 'bg-slate-50 hover:bg-purple-50/50 border-slate-100 hover:border-purple-200'
-                            }`}
-                            style={{ opacity: (filterType !== 'todos' && filterType !== 'precursor especial') ? 0.6 : 1 }}
-                        >
-                            <div className="flex items-center justify-center gap-1 text-[8px] sm:text-[10px] uppercase font-bold tracking-wider text-purple-700">
-                                <i className="fas fa-award text-[9px] sm:text-[10px]"></i>
-                                <span className="hidden xs:inline">Prec. Esp.</span>
-                                <span className="xs:hidden">P. Esp.</span>
-                            </div>
-                            <div className="text-xs sm:text-lg font-extrabold text-purple-600 mt-0.5 sm:mt-1">{stats.precursoresEspeciales}</div>
-                        </div>
-
-                        <div 
-                            onClick={() => setFilterType(filterType === 'inactivo' ? 'todos' : 'inactivo')}
-                            className={`flex-shrink-0 sm:flex-1 min-w-[76px] sm:min-w-[125px] cursor-pointer rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-center transition-all duration-200 shadow-sm border flex flex-col justify-between ${
-                                filterType === 'inactivo' 
-                                ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-500/10' 
-                                : 'bg-slate-50 hover:bg-rose-50/50 border-slate-100 hover:border-rose-200'
-                            }`}
-                            style={{ opacity: (filterType !== 'todos' && filterType !== 'inactivo') ? 0.6 : 1 }}
-                        >
-                            <div className="flex items-center justify-center gap-1 text-[8px] sm:text-[10px] uppercase font-bold tracking-wider text-rose-700">
-                                <i className="fas fa-user-slash text-[9px] sm:text-[10px]"></i>
-                                <span className="hidden xs:inline">Inactivos</span>
-                                <span className="xs:hidden">Inac.</span>
-                            </div>
-                            <div className="text-xs sm:text-lg font-extrabold text-rose-600 mt-0.5 sm:mt-1">{stats.inactivos}</div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Row 3: Search input left, Share button right - utilizing md layout to prevent tight tablet overlaps */}
-                <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 w-full pt-2">
-                    <div className="relative w-full md:max-w-md">
-                        <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" style={{ display: 'none' }}></i>
+                {/* Single Unified Search & Filter Toolbar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+                    {/* Search Input */}
+                    <div className="relative flex-1">
+                        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                         <input 
                             type="text" 
-                            placeholder="Buscar publicador..." 
+                            placeholder="Buscar publicador por nombre..." 
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-4 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-400/20 focus:border-indigo-500 transition-all font-medium text-slate-700 placeholder:text-slate-400"
+                            className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-800 dark:text-white placeholder:text-slate-400 shadow-sm"
                         />
+                        {searchTerm && (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        )}
                     </div>
-                    {currentCongregation && (
-                        <button
-                            onClick={() => {
-                                const shareUrl = `${window.location.origin}${window.location.pathname}?view=publisher_report&congregation_id=${currentCongregation.id}`;
-                                navigator.clipboard.writeText(shareUrl).then(() => {
-                                    alert('¡Enlace de reporte de precursores y tarjetas copiado al portapapeles!');
-                                }).catch((err) => {
-                                    alert('No se pudo copiar el enlace automáticamente. Aquí tienes el enlace: ' + shareUrl);
-                                });
-                            }}
-                            className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 border border-indigo-700 rounded-xl text-sm font-bold text-white hover:bg-indigo-700 hover:shadow transition-all duration-200 shadow-sm cursor-pointer whitespace-nowrap"
-                            title="Compartir padrón de precursores y fichas S-21"
+
+                    {/* Single Unified Filter Dropdown */}
+                    <div className="relative sm:w-80 shrink-0">
+                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 pointer-events-none flex items-center">
+                            <Filter className="w-4 h-4" />
+                        </div>
+                        <select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value)}
+                            className="w-full pl-10 pr-9 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200 cursor-pointer shadow-sm appearance-none"
                         >
-                            <i className="fas fa-share-alt animate-pulse"></i> 
-                            <span>Compartir Reporte y Tarjetas</span>
-                        </button>
-                    )}
+                            <option value="todos">Todos los Publicadores ({baseData.length})</option>
+                            
+                            <optgroup label="── NOMBRAMIENTO / ESTADO ──">
+                                <option value="anciano">Ancianos ({stats.ancianos})</option>
+                                <option value="siervo">Siervos Ministeriales ({stats.siervos})</option>
+                                <option value="precursor regular">Precursores Regulares ({stats.precursoresRegulares})</option>
+                                <option value="precursor especial">Precursores Especiales ({stats.precursoresEspeciales})</option>
+                                <option value="inactivo">Inactivos ({stats.inactivos})</option>
+                            </optgroup>
+
+                            <optgroup label="── GRUPOS DE PREDICACIÓN ──">
+                                {groups.map(g => (
+                                    <option key={g.id} value={`grupo:${g.id}`}>
+                                        {g.nombre} ({groupCounts[String(g.id)] || 0})
+                                    </option>
+                                ))}
+                                <option value="grupo:estudiante_vmt">Escuela VMT ({groupCounts['estudiante_vmt'] || 0})</option>
+                                <option value="grupo:unassigned">Sin Grupo Asignado ({groupCounts['unassigned'] || 0})</option>
+                            </optgroup>
+                        </select>
+                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                            <ChevronDown className="w-4 h-4" />
+                        </div>
+                    </div>
                 </div>
 
-                {/* Active Filter Bar */}
+                {/* Active Filter Ribbon */}
                 {(filterType !== 'todos' || searchTerm.trim() !== '') && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4 bg-indigo-50/80 border border-indigo-100 rounded-xl mt-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-slate-900/60 border border-indigo-100 dark:border-indigo-900/60 rounded-xl">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-sm">
-                                <i className="fas fa-filter text-[10px]"></i>
-                                {filterType === 'precursor regular' ? 'Precursores Regulares' :
-                                 filterType === 'precursor especial' ? 'Precursores Especiales' :
-                                 filterType === 'anciano' ? 'Ancianos' :
-                                 filterType === 'siervo' ? 'Siervos Ministeriales' :
-                                 filterType === 'inactivo' ? 'Inactivos' : 'Filtro Activo'}
-                            </span>
-                            <span className="text-xs font-bold text-slate-700">
+                            {filterType !== 'todos' && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-sm">
+                                    <Filter className="w-3.5 h-3.5" />
+                                    {filterType === 'precursor regular' ? 'Precursores Regulares' :
+                                     filterType === 'precursor especial' ? 'Precursores Especiales' :
+                                     filterType === 'anciano' ? 'Ancianos' :
+                                     filterType === 'siervo' ? 'Siervos Ministeriales' :
+                                     filterType === 'inactivo' ? 'Inactivos' :
+                                     filterType === 'grupo:unassigned' ? 'Sin Grupo Asignado' :
+                                     filterType === 'grupo:estudiante_vmt' ? 'Escuela VMT' :
+                                     filterType.startsWith('grupo:') ? (groups.find(g => String(g.id) === filterType.replace('grupo:', ''))?.nombre || 'Grupo') : 'Filtro Activo'}
+                                </span>
+                            )}
+
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                 {data.length} {data.length === 1 ? 'publicador encontrado' : 'publicadores encontrados'}
                             </span>
                             {searchTerm && (
-                                <span className="text-xs text-slate-500 font-medium italic">
+                                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium italic">
                                     (búsqueda: "{searchTerm}")
                                 </span>
                             )}
                         </div>
+
                         <div className="flex items-center gap-2 flex-wrap">
                             <button
                                 onClick={handleDownloadFilteredListPdf}
-                                className="text-xs font-bold px-3 py-1.5 bg-white text-slate-800 border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                disabled={isGeneratingPdf}
+                                className="text-xs font-bold px-3 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Descargar listado filtrado en PDF"
                             >
-                                <i className="fas fa-file-pdf text-red-500 text-xs"></i>
-                                <span>Descargar Lista PDF ({data.length})</span>
+                                {isGeneratingPdf ? (
+                                    <Loader2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-spin" />
+                                ) : (
+                                    <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                )}
+                                <span>{isGeneratingPdf ? 'Generando...' : `Lista PDF (${data.length})`}</span>
                             </button>
                             <button
                                 onClick={() => setShowBulkCardsModal(true)}
-                                className="text-xs font-bold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                className="text-xs font-bold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                                 title="Descargar tarjetas S-21 de los publicadores filtrados"
                             >
-                                <i className="fas fa-id-card text-xs"></i>
-                                <span>Descargar {data.length} Tarjetas S-21</span>
+                                <IdCard className="w-3.5 h-3.5" />
+                                <span>{data.length} Tarjetas S-21</span>
                             </button>
                             <button
                                 onClick={() => { setFilterType('todos'); setSearchTerm(''); }}
-                                className="text-xs text-slate-500 hover:text-slate-800 px-2 py-1.5 hover:bg-slate-200/50 rounded-lg transition-colors cursor-pointer flex items-center gap-1 font-medium"
+                                className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-2.5 py-1.5 hover:bg-slate-200/60 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex items-center gap-1 font-semibold"
                                 title="Quitar todos los filtros"
                             >
-                                <i className="fas fa-times text-xs"></i>
-                                <span>Limpiar</span>
+                                <X className="w-3.5 h-3.5" />
+                                <span>Limpiar Filtros</span>
                             </button>
                         </div>
                     </div>

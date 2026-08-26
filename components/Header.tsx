@@ -2,33 +2,62 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useCongregation } from '../lib/CongregationContext';
 import { useDBStatus } from '../lib/supabase';
+import { 
+    Home, 
+    BookOpen, 
+    Users, 
+    BarChart3, 
+    Settings, 
+    ChevronDown, 
+    Check, 
+    Smartphone, 
+    Monitor, 
+    Moon, 
+    Sun,
+    Menu,
+    X,
+    UserCheck,
+    Shield,
+    Calendar,
+    Filter,
+    CheckSquare,
+    CalendarRange,
+    ShieldCheck,
+    FileText,
+    User,
+    PieChart,
+    BookUser,
+    CalendarDays,
+    Bell,
+    Database
+} from 'lucide-react';
 
 const DBStatusIndicator: React.FC = () => {
     const { activeWrites, lastWriteError, isOnline } = useDBStatus();
 
     let statusText = 'Sincronizado';
-    let statusClass = 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:bg-emerald-550/10 dark:text-emerald-400 dark:border-emerald-555/20';
+    let statusClass = 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30';
     let dotClass = 'bg-emerald-500';
     let isPulsing = false;
 
     if (!isOnline) {
         statusText = 'Modo sin conexión';
-        statusClass = 'bg-slate-500/10 text-slate-500 border-slate-500/15 dark:bg-slate-500/10 dark:text-slate-450 dark:border-slate-500/15';
+        statusClass = 'bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-500/15 dark:text-slate-400 dark:border-slate-500/30';
         dotClass = 'bg-slate-400';
     } else if (activeWrites > 0) {
         statusText = 'Guardando...';
-        statusClass = 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20';
+        statusClass = 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:bg-amber-500/15 dark:text-amber-400 dark:border-amber-500/30';
         dotClass = 'bg-amber-500';
         isPulsing = true;
     } else if (lastWriteError) {
         statusText = 'No se pudo guardar';
-        statusClass = 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20';
+        statusClass = 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:bg-rose-500/15 dark:text-rose-400 dark:border-rose-500/30';
         dotClass = 'bg-rose-500';
     }
 
     return (
         <div 
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold border ${statusClass} transition-all duration-300 shadow-sm shrink-0`}
+            className={`flex items-center gap-1.5 px-2 py-1 sm:px-2.5 rounded-full text-[10px] sm:text-xs font-semibold border ${statusClass} backdrop-blur-sm transition-all duration-300 shadow-sm shrink-0`}
             title={
                 !isOnline 
                 ? 'Sin conexión a Internet. Los cambios se guardarán localmente.' 
@@ -39,15 +68,15 @@ const DBStatusIndicator: React.FC = () => {
                 : 'Conexión activa. Todos los cambios están guardados en la nube.'
             }
         >
-            <span className="relative flex h-2 w-2">
+            <span className="relative flex h-2 w-2 shrink-0">
                 {isPulsing && (
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                 )}
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${dotClass}`}></span>
             </span>
-            <span className="tracking-tight hidden xs:inline">{statusText}</span>
-            <span className="tracking-tight xs:hidden leading-none">
-                {statusText === 'Modo sin conexión' ? 'Offline' : statusText === 'Guardando...' ? 'Sinc.' : 'Sinc.'}
+            <span className="tracking-tight hidden sm:inline">{statusText}</span>
+            <span className="tracking-tight sm:hidden leading-none font-bold">
+                {statusText === 'Modo sin conexión' ? 'Off' : statusText === 'Guardando...' ? 'Sinc.' : 'Sinc.'}
             </span>
         </div>
     );
@@ -62,7 +91,7 @@ interface HeaderProps {
     viewMode: 'desktop' | 'mobile';
     toggleViewMode: () => void;
     congregationName?: string;
-    accessLabel?: string | null; // Nuevo prop para el nombre del usuario
+    accessLabel?: string | null;
 }
 
 type NavGroup = 'Inicio' | 'Vida y Ministerio Teocrático' | 'Informes de Predicación' | 'Asistencia' | 'Configuración';
@@ -94,6 +123,36 @@ const GROUPS_ORDER: NavGroup[] = [
     'Asistencia',
     'Configuración'
 ];
+
+const GROUP_ICONS: Record<NavGroup, React.FC<{ className?: string }>> = {
+    'Inicio': Home,
+    'Vida y Ministerio Teocrático': BookOpen,
+    'Informes de Predicación': Users,
+    'Asistencia': BarChart3,
+    'Configuración': Settings
+};
+
+const TAB_ICONS: Record<string, React.FC<{ className?: string }>> = {
+    "Inicio": Home,
+    "Programa": Calendar,
+    "Gestionar Participantes": UserCheck,
+    "Filtros Avanzados": Filter,
+    "Respuestas de Asignaciones": CheckSquare,
+    "Planificador": CalendarRange,
+    "Asignar Anc. y Min.": ShieldCheck,
+    "Informes": FileText,
+    "Asistencia": BarChart3,
+    "Grupo de Congregación": Users,
+    "↳ Mi Grupo": User,
+    "↳ Resumen General": PieChart,
+    "↳ Lista de Publicadores": BookUser,
+    "↳ Directorio": BookUser,
+    "↳ Tarjetas": BookUser,
+    "Rol de Grupos": CalendarDays,
+    "Recordatorios": Bell,
+    "Copias de Seguridad": Database,
+    "Configuración": Settings
+};
 
 const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, theme, toggleTheme, viewMode, toggleViewMode, congregationName, accessLabel }) => {
     const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -135,12 +194,36 @@ const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, them
     };
 
     const actionButtons = (
-        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-            <button onClick={toggleViewMode} className="action-button" title={`Vista ${viewMode === 'desktop' ? 'Móvil' : 'Escritorio'}`}>
-                <i className={`fas fa-${viewMode === 'desktop' ? 'mobile-alt' : 'desktop'}`}></i>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }} className="shrink-0">
+            <button 
+                onClick={toggleViewMode} 
+                className="action-button hover:scale-105 active:scale-95 transition-transform" 
+                title={`Cambiar a vista ${viewMode === 'desktop' ? 'Móvil' : 'Escritorio'}`}
+                style={{
+                    backgroundColor: 'var(--card-bg-color)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px'
+                }}
+            >
+                <i 
+                    className={`fas fa-${viewMode === 'desktop' ? 'mobile-alt' : 'desktop'}`} 
+                    style={{ color: '#3b82f6', fontSize: '15px' }}
+                ></i>
             </button>
-            <button onClick={toggleTheme} className="action-button" title={`Tema ${theme === 'light' ? 'Oscuro' : 'Claro'}`}>
-                <i className={`fas fa-${theme === 'light' ? 'moon' : 'sun'}`}></i>
+            <button 
+                onClick={toggleTheme} 
+                className="action-button hover:scale-105 active:scale-95 transition-transform" 
+                title={`Cambiar a tema ${theme === 'light' ? 'Oscuro' : 'Claro'}`}
+                style={{
+                    backgroundColor: 'var(--card-bg-color)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px'
+                }}
+            >
+                <i 
+                    className={`fas fa-${theme === 'light' ? 'moon' : 'sun'}`} 
+                    style={{ color: theme === 'light' ? '#6366f1' : '#f59e0b', fontSize: '15px' }}
+                ></i>
             </button>
         </div>
     );
@@ -165,16 +248,22 @@ const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, them
         return GROUPS_ORDER.map(group => {
             const items = navGroups[group];
             if (items.length === 0) return null;
+            const IconComp = GROUP_ICONS[group];
 
             if (group === 'Inicio' || (items.length === 1 && items[0] === group)) {
+                const isActive = activeTab === items[0];
                 return (
-                    <li key={group} style={{position: 'relative'}}>
+                    <li key={group} className="list-none m-0 p-0 relative">
                         <button
                             onClick={() => { setActiveTab(items[0]); setOpenDropdown(null); if(isMobile) setMobileMenuOpen(false); }}
-                            className={`app-nav__button ${activeTab === items[0] ? 'app-nav__button--active' : ''}`}
-                            style={isMobile ? { width: '100%', fontSize: '1.1rem', fontWeight: 'bold' } : {}}
+                            className={`flex items-center gap-2 font-bold transition-all duration-200 cursor-pointer select-none ${
+                                isMobile 
+                                    ? `w-full px-4 py-3 rounded-xl text-sm ${isActive ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`
+                                    : `px-3.5 py-1.5 rounded-xl text-xs xl:text-sm ${isActive ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/30 font-extrabold' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700/80 font-semibold'}`
+                            }`}
                         >
-                            {group}
+                            <IconComp className="w-4 h-4 shrink-0" />
+                            <span className="whitespace-nowrap">{group}</span>
                         </button>
                     </li>
                 );
@@ -183,80 +272,78 @@ const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, them
             const isActiveGroup = items.includes(activeTab);
 
             return (
-                <li key={group} style={isMobile ? { borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', marginBottom: '10px' } : { position: 'relative' }}>
+                <li key={group} className={isMobile ? "list-none m-0 p-0 border-b border-slate-200 dark:border-slate-800 pb-2 mb-2" : "list-none m-0 p-0 relative"}>
                     <button
                         onClick={() => {
-                            if (isMobile) {
-                                setOpenDropdown(openDropdown === group ? null : group);
-                            } else {
-                                setOpenDropdown(openDropdown === group ? null : group);
-                            }
+                            setOpenDropdown(openDropdown === group ? null : group);
                         }}
-                        className={`app-nav__button ${isActiveGroup && !isMobile ? 'app-nav__button--active' : ''}`}
-                        style={isMobile ? { width: '100%', display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 'bold', padding: '10px' } : { display: 'flex', alignItems: 'center', gap: '5px' }}
+                        className={`flex items-center gap-2 font-semibold transition-all duration-200 cursor-pointer select-none ${
+                            isMobile 
+                                ? `w-full px-4 py-3 rounded-xl text-sm justify-between ${isActiveGroup ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-bold' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`
+                                : `px-3.5 py-1.5 rounded-xl text-xs xl:text-sm ${isActiveGroup ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/30 font-extrabold' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-700/80 font-semibold'}`
+                        }`}
                     >
-                        {group} {isMobile && <i className={`fas fa-chevron-${openDropdown === group ? 'up' : 'down'}`} style={{fontSize: '0.8em'}}></i>}
+                        <div className="flex items-center gap-2">
+                            <IconComp className="w-4 h-4 shrink-0" />
+                            <span className="whitespace-nowrap">{group}</span>
+                        </div>
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${openDropdown === group ? 'rotate-180' : ''}`} />
                     </button>
                     
                     {openDropdown === group && (
-                        <div style={isMobile ? {
-                            paddingLeft: '15px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '5px',
-                            marginTop: '10px',
-                            borderLeft: '2px solid var(--primary-light)',
-                            marginLeft: '10px'
-                        } : {
-                            position: 'absolute',
-                            top: 'calc(100% + 10px)',
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            backgroundColor: 'var(--card-bg-color)',
-                            border: '1px solid var(--border-color)',
-                            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-                            borderRadius: '12px',
-                            padding: '8px',
-                            minWidth: '240px',
-                            zIndex: 100,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '4px',
-                            animation: 'slideUp 0.2s ease-out'
-                        }}>
-                            {items.map(item => (
-                                <button
-                                    key={item}
-                                    onClick={() => {
-                                        setActiveTab(item);
-                                        setOpenDropdown(null);
-                                        if (isMobile) setMobileMenuOpen(false);
-                                    }}
-                                    className={`app-nav__button ${activeTab === item ? 'app-nav__button--active' : ''}`}
-                                    style={isMobile ? {
-                                        fontSize: '0.90rem',
-                                        width: '100%',
-                                        textAlign: 'left',
-                                        padding: '10px 12px',
-                                        borderRadius: '8px',
-                                        fontWeight: '500',
-                                        color: activeTab === item ? 'var(--primary-color)' : 'var(--text-color)'
-                                    } : {
-                                        textAlign: 'left',
-                                        width: '100%',
-                                        padding: '10px 14px',
-                                        borderRadius: '8px',
-                                        fontSize: '0.9rem',
-                                        fontWeight: activeTab === item ? '600' : '500',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between'
-                                    }}
-                                >
-                                    {item}
-                                    {activeTab === item && !isMobile && <i className="fas fa-check" style={{fontSize: '0.8rem', color: 'var(--primary-color)'}}></i>}
-                                </button>
-                            ))}
+                        <div 
+                            className="animate-fade-in-up"
+                            style={isMobile ? {
+                                paddingLeft: '12px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '4px',
+                                marginTop: '6px',
+                                borderLeft: '2px solid #3b82f6',
+                                marginLeft: '12px'
+                            } : {
+                                position: 'absolute',
+                                top: 'calc(100% + 8px)',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                backgroundColor: 'var(--card-bg-color)',
+                                border: '1px solid var(--border-color)',
+                                boxShadow: '0 16px 36px -4px rgba(0, 0, 0, 0.15)',
+                                borderRadius: '16px',
+                                padding: '8px',
+                                minWidth: '250px',
+                                zIndex: 100,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '4px',
+                                backdropFilter: 'blur(16px)'
+                            }}
+                        >
+                            {items.map(item => {
+                                const ItemIcon = TAB_ICONS[item] || (group ? GROUP_ICONS[group] : BookOpen);
+                                const isActive = activeTab === item;
+                                return (
+                                    <button
+                                        key={item}
+                                        onClick={() => {
+                                            setActiveTab(item);
+                                            setOpenDropdown(null);
+                                            if (isMobile) setMobileMenuOpen(false);
+                                        }}
+                                        className={`text-left px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center justify-between cursor-pointer gap-2 ${
+                                            isActive 
+                                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-sm' 
+                                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <ItemIcon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`} />
+                                            <span className="truncate">{item}</span>
+                                        </div>
+                                        {isActive && <Check className="w-3.5 h-3.5 shrink-0 ml-2" />}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
                 </li>
@@ -265,90 +352,78 @@ const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, them
     };
 
     return (
-        <header className="app-header" ref={headerRef}>
-            <div className="app-header__container">
-                <div className="app-header__inner">
+        <header className="app-header bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/90 dark:border-slate-800/90 shadow-sm sticky top-0 z-50 py-1.5 sm:py-2" ref={headerRef}>
+            <div className="max-w-7xl mx-auto px-3 sm:px-6">
+                <div className="flex items-center justify-between gap-3 min-h-[50px] sm:min-h-[58px]">
                     <div 
-                        className="app-header__branding" 
+                        className="flex items-center gap-2.5 sm:gap-3 select-none cursor-pointer min-w-0" 
                         onClick={handleSecretLogoClick}
                         title="Cambiar Congregación (5 toques)"
                     >
-                        <img 
-                            className="app-header__logo" 
-                            src="https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?auto=format&fit=crop&q=80&w=150&h=150" 
-                            alt="Logo"
-                        />
-                        <div>
-                            <div className="app-header__title">{congregationName || 'Sistema VMT'}</div>
-                            {congregationName && <div style={{fontSize:'0.75rem', color:'var(--text-color-light)', fontWeight:'500'}}>Congregación Activa</div>}
-                            {/* Mostrar nombre de usuario aquí */}
-                            {accessLabel && (
-                                <div style={{
-                                    fontSize:'0.7rem', 
-                                    color:'var(--primary-color)', 
-                                    fontWeight:'700', 
-                                    marginTop:'2px',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.5px'
-                                }}>
-                                    <i className="fas fa-user-circle mr-1"></i>{accessLabel}
-                                </div>
-                            )}
+                        <div className="relative shrink-0">
+                            <img 
+                                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover shadow-sm border-2 border-indigo-500/20 dark:border-indigo-500/40" 
+                                src="https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?auto=format&fit=crop&q=80&w=150&h=150" 
+                                alt="Logo"
+                            />
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></div>
+                        </div>
+                        <div className="min-w-0">
+                            <div className="font-black text-slate-900 dark:text-white tracking-tight leading-tight text-sm sm:text-base truncate max-w-[130px] xs:max-w-[200px] sm:max-w-none">
+                                {congregationName || 'Sistema VMT'}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-none hidden xs:inline">
+                                    Congregación Activa
+                                </span>
+                                {accessLabel && (
+                                    <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 border border-blue-200/80 dark:border-blue-800/60 px-2 py-0.5 rounded-full leading-tight">
+                                        <Shield className="w-2.5 h-2.5" />
+                                        <span>{accessLabel}</span>
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
                     
-                    {/* Desktop Nav */}
-                    <nav className="app-nav--desktop" style={{flex: 1}}>
-                        <ul className="app-nav__list" style={{gap: '5px', justifyContent: 'center'}}>
+                    {/* Desktop Segmented Navigation Bar */}
+                    <nav className="hidden lg:flex items-center justify-center flex-1 px-3">
+                        <ul className="list-none m-0 p-1 flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-inner">
                             {renderNavItems(false)}
                         </ul>
                     </nav>
 
-                    <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
-                         <DBStatusIndicator />
-                         <div className="flex items-center gap-1.5 sm:gap-2">
-                            {actionButtons}
-                         </div>
- 
-                         {/* Mobile Menu Button */}
-                        <div className="app-nav__mobile-toggle-wrapper">
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        <DBStatusIndicator />
+                        {actionButtons}
+
+                        {/* Mobile Menu Button */}
+                        <div className="lg:hidden shrink-0">
                             <button
                                 type="button"
-                                className="app-nav__mobile-toggle"
+                                className="action-button app-nav__mobile-toggle hover:scale-105 active:scale-95 transition-transform"
                                 aria-label="Toggle menu"
                                 onClick={() => setMobileMenuOpen(!isMobileMenuOpen)}
+                                style={{
+                                    backgroundColor: 'var(--card-bg-color)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '10px'
+                                }}
                             >
-                                <i className={`fas fa-${isMobileMenuOpen ? 'times' : 'bars'}`}></i>
+                                <i 
+                                    className={`fas fa-${isMobileMenuOpen ? 'times' : 'bars'}`} 
+                                    style={{ color: 'var(--text-color)', fontSize: '15px' }}
+                                ></i>
                             </button>
                         </div>
                     </div>
                 </div>
                 
-                 {/* Mobile Nav */}
+                {/* Mobile Nav Drawer */}
                 {isMobileMenuOpen && (
-                    <nav className="app-nav app-nav--mobile">
-                        <ul className="app-nav__list app-nav__list--mobile" style={{alignItems: 'stretch', padding: '10px'}}>
+                    <nav className="lg:hidden mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-fade-in-down">
+                        <ul className="list-none m-0 p-0 space-y-1 py-2">
                             {renderNavItems(true)}
-                            <li style={{borderTop: '1px solid var(--border-color)', marginTop: '8px', paddingTop: '12px', display: 'flex', justifyContent: 'space-around', alignItems: 'center', gap: '10px'}}>
-                                <button 
-                                    onClick={toggleViewMode} 
-                                    className="app-nav__button"
-                                    style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', color: 'var(--text-color-light)', fontSize: '0.85rem', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)'}}
-                                    title={`Vista ${viewMode === 'desktop' ? 'Móvil' : 'Escritorio'}`}
-                                >
-                                    <i className={`fas fa-${viewMode === 'desktop' ? 'mobile-alt' : 'desktop'}`}></i>
-                                    <span>Vista {viewMode === 'desktop' ? 'Móvil' : 'Escritorio'}</span>
-                                </button>
-                                <button 
-                                    onClick={toggleTheme} 
-                                    className="app-nav__button"
-                                    style={{display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', color: 'var(--text-color-light)', fontSize: '0.85rem', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)'}}
-                                    title={`Tema ${theme === 'light' ? 'Oscuro' : 'Claro'}`}
-                                >
-                                    <i className={`fas fa-${theme === 'light' ? 'moon' : 'sun'}`}></i>
-                                    <span>Tema {theme === 'light' ? 'Oscuro' : 'Claro'}</span>
-                                </button>
-                            </li>
                         </ul>
                     </nav>
                 )}

@@ -300,7 +300,14 @@ const AppContent: React.FC = () => {
     // -------------------------------------
 
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
-    const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
+    const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('vmt_view_mode');
+            if (saved === 'desktop' || saved === 'mobile') return saved;
+            return window.innerWidth < 1024 ? 'mobile' : 'desktop';
+        }
+        return 'desktop';
+    });
     const [specialView, setSpecialView] = useState<{view: string; participant?: string; congregationId?: number} | null>(null);
     const [isLoadingAccess, setIsLoadingAccess] = useState(true); // Start loading true to check persistent token
     const [accessLabel, setAccessLabel] = useState<string | null>(null);
@@ -476,8 +483,13 @@ const AppContent: React.FC = () => {
             // Theme and View Mode logic
             const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
             setTheme(prefersDark ? 'dark' : 'light');
-            const isMobileDevice = () => /Mobi/i.test(window.navigator.userAgent) || window.innerWidth < 1024;
-            setViewMode(isMobileDevice() ? 'mobile' : 'desktop');
+            const savedViewMode = localStorage.getItem('vmt_view_mode');
+            if (savedViewMode === 'desktop' || savedViewMode === 'mobile') {
+                setViewMode(savedViewMode);
+            } else {
+                const isMobileDevice = () => /Mobi/i.test(window.navigator.userAgent) || window.innerWidth < 1024;
+                setViewMode(isMobileDevice() ? 'mobile' : 'desktop');
+            }
 
             // --- 1. DIRECT LINK HANDLING (Token URL) ---
             if (token) {
@@ -561,7 +573,15 @@ const AppContent: React.FC = () => {
     }, [applyAccessConfig]); // Safe dependency array now that applyAccessConfig is stable via Context fix. Removed isSuperAdmin to prevent redundant checks on logout.
 
     const toggleTheme = () => setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-    const toggleViewMode = () => setViewMode(prevMode => (prevMode === 'desktop' ? 'mobile' : 'desktop'));
+    const toggleViewMode = () => {
+        setViewMode(prevMode => {
+            const next = prevMode === 'desktop' ? 'mobile' : 'desktop';
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('vmt_view_mode', next);
+            }
+            return next;
+        });
+    };
 
     const isReadOnly = useMemo(() => {
         if (isSuperAdmin) return false; // Super admin always edits
@@ -605,15 +625,23 @@ const AppContent: React.FC = () => {
             
             {/* Super Admin specific logout bar (discreet) - kept separate for admin tasks */}
             {isSuperAdmin && (
-                <div style={{ backgroundColor: '#1e293b', color: 'white', padding: '5px 10px', textAlign: 'right', fontSize: '0.8rem', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'10px' }}>
-                    <span style={{opacity:0.7}}><i className="fas fa-user-shield mr-1"></i> Administrador Global</span>
-                    <button onClick={handleExit} style={{background:'none', border:'none', cursor:'pointer', color:'#fca5a5', fontWeight:'bold', fontSize:'0.8rem'}}>
-                        Salir
+                <div className="bg-slate-900 text-slate-300 border-b border-slate-800 text-xs px-4 py-1.5 flex justify-end items-center gap-3 select-none">
+                    <span className="flex items-center gap-1.5 opacity-80 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                        Administrador Global
+                    </span>
+                    <button 
+                        onClick={handleExit} 
+                        className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-0.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    >
+                        Cerrar Sesión
                     </button>
                 </div>
             )}
             <main>
-                <div style={{ display: activeTab === 'Inicio' ? 'block' : 'none' }}><Inicio accessLabel={isSuperAdmin ? null : accessLabel} /></div>
+                <div style={{ display: activeTab === 'Inicio' ? 'block' : 'none' }}>
+                    <Inicio accessLabel={isSuperAdmin ? null : accessLabel} onNavigate={setActiveTab} />
+                </div>
                 
                 {navItems.includes('Recordatorios') && (
                     <div style={{ display: activeTab === 'Recordatorios' ? 'block' : 'none' }}>

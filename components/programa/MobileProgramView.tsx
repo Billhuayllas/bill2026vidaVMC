@@ -5,6 +5,7 @@ import MobileSectionTesoros from './MobileSectionTesoros';
 import MobileSectionMaestros from './MobileSectionMaestros';
 import MobileSectionVida from './MobileSectionVida';
 import { ParticipantLists, AssignmentHistory } from '../../lib/types';
+import { LayoutDashboard, Gem, GraduationCap, Sparkles } from 'lucide-react';
 
 interface MobileViewProps {
     programData: any;
@@ -33,10 +34,34 @@ const MobileProgramView: React.FC<MobileViewProps> = (props) => {
     return (
         <div className="programa-mobile-view">
              <nav className="mobile-tabs-nav">
-                <button onClick={() => setActiveTab('general')} className={activeTab === 'general' ? 'active' : ''}>General</button>
-                <button onClick={() => setActiveTab('tesoros')} className={activeTab === 'tesoros' ? 'active' : ''}>Tesoros</button>
-                <button onClick={() => setActiveTab('maestros')} className={activeTab === 'maestros' ? 'active' : ''}>Maestros</button>
-                <button onClick={() => setActiveTab('vida')} className={activeTab === 'vida' ? 'active' : ''}>Vida</button>
+                <button 
+                    onClick={() => setActiveTab('general')} 
+                    className={`flex items-center justify-center gap-1.5 ${activeTab === 'general' ? 'active' : ''}`}
+                >
+                    <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
+                    <span>General</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('tesoros')} 
+                    className={`flex items-center justify-center gap-1.5 ${activeTab === 'tesoros' ? 'active' : ''}`}
+                >
+                    <Gem className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                    <span>Tesoros</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('maestros')} 
+                    className={`flex items-center justify-center gap-1.5 ${activeTab === 'maestros' ? 'active' : ''}`}
+                >
+                    <GraduationCap className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                    <span>Maestros</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('vida')} 
+                    className={`flex items-center justify-center gap-1.5 ${activeTab === 'vida' ? 'active' : ''}`}
+                >
+                    <Sparkles className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                    <span>Vida</span>
+                </button>
             </nav>
             
             <div className="mobile-tab-content-wrapper" style={{ paddingBottom: '20px', minHeight: '300px' }}>
