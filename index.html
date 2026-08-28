@@ -1,9 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     <title>Congregación 15 de julio</title>
+
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#007AFF" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Congregación" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <style>
     /* --- RECIPE: iOS Style / Human Interface Guidelines --- */
     :root, .theme-light {
@@ -465,34 +477,42 @@
         display: flex;
         width: 100%;
         border-bottom: 1px solid var(--border-color);
-        background-color: var(--bg-color);
+        background-color: var(--card-bg-color);
         padding-bottom: 0 !important; 
         margin-bottom: 15px;
         overflow-x: auto;
         position: sticky;
-        top: 60px; /* Adjust based on header */
-        z-index: 90;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        top: 52px; /* Docks cleanly below sticky header bar */
+        z-index: 25; /* Safe layer: above cards/content, below header, mobile menu, and modals */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        -webkit-overflow-scrolling: touch;
     }
     
     .mobile-tabs-nav button {
         flex: 1;
-        padding: 12px 5px;
+        padding: 11px 8px;
         background: transparent;
         border: none;
         border-bottom: 3px solid transparent;
         color: var(--text-color-light);
         font-weight: 600;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
         white-space: nowrap;
     }
     
     .mobile-tabs-nav button.active {
-        color: var(--primary-color);
-        border-bottom-color: var(--primary-color);
-        background-color: rgba(79, 70, 229, 0.05);
+        color: #2563eb;
+        border-bottom-color: #2563eb;
+        background-color: rgba(37, 99, 235, 0.08);
+        font-weight: 700;
+    }
+
+    .theme-dark .mobile-tabs-nav button.active {
+        color: #60a5fa;
+        border-bottom-color: #60a5fa;
+        background-color: rgba(96, 165, 250, 0.15);
     }
 
     /* Sticky Footer on Mobile */
@@ -523,7 +543,7 @@
             border-right: none;
             border-bottom: none;
             box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
-            z-index: 990; /* Below dropdowns/modals */
+            z-index: 45; /* Floats above content, but safely below header (1000), mobile menu (9999), and modals */
             padding: 12px 15px;
             display: flex;
             flex-direction: column;
@@ -1053,5 +1073,14 @@
 <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((reg) => console.log('PWA ServiceWorker registrado con éxito:', reg.scope))
+                    .catch((err) => console.warn('PWA ServiceWorker error de registro:', err));
+            });
+        }
+    </script>
 </body>
 </html>

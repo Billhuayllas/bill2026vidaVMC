@@ -525,7 +525,7 @@ const SharedPublisherReport: React.FC<SharedPublisherReportProps> = ({ congregat
 
             {/* FULLY RESPONSIVE S-21 CARD MODAL DIALOG - ZERO SIDE SCROLLING */}
             {isCardModalOpen && selectedPublisher && currentPublisherDetails && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm overflow-y-auto">
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm overflow-y-auto">
                     <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-scale-up">
                         
                         {/* Modal Header */}

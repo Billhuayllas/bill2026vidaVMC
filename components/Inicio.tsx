@@ -18,12 +18,16 @@ import {
     ShieldCheck, 
     Layers,
     CalendarCheck2,
-    Flame
+    Flame,
+    Smartphone,
+    Download
 } from 'lucide-react';
 
 interface InicioProps {
     accessLabel: string | null;
     onNavigate?: (tab: string) => void;
+    onOpenInstallModal?: () => void;
+    isInstalled?: boolean;
 }
 
 type Reminder = {
@@ -34,7 +38,7 @@ type Reminder = {
     target_group: string | null;
 };
 
-const Inicio: React.FC<InicioProps> = ({ accessLabel, onNavigate }) => {
+const Inicio: React.FC<InicioProps> = ({ accessLabel, onNavigate, onOpenInstallModal, isInstalled }) => {
     const { currentCongregation } = useCongregation();
     const [weeklyTasks, setWeeklyTasks] = useState<Reminder[]>([]);
     const [generalEvents, setGeneralEvents] = useState<Reminder[]>([]);
@@ -238,6 +242,16 @@ const Inicio: React.FC<InicioProps> = ({ accessLabel, onNavigate }) => {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
+                        {onOpenInstallModal && !isInstalled && (
+                            <button
+                                onClick={onOpenInstallModal}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-sm font-bold shadow-md hover:shadow-lg shadow-emerald-500/25 transition-all duration-200 cursor-pointer active:scale-95"
+                                title="Descargar / Instalar en tu teléfono"
+                            >
+                                <Smartphone className="w-4 h-4" />
+                                <span>Descargar App Móvil</span>
+                            </button>
+                        )}
                         {onNavigate && (
                             <button
                                 onClick={() => onNavigate('Programa')}
@@ -259,6 +273,38 @@ const Inicio: React.FC<InicioProps> = ({ accessLabel, onNavigate }) => {
                     </div>
                 </div>
             </div>
+
+            {/* PROMOTIONAL APP INSTALL BANNER - ONLY WHEN NOT INSTALLED */}
+            {onOpenInstallModal && !isInstalled && (
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-teal-600/10 dark:from-blue-900/30 dark:via-indigo-900/30 dark:to-teal-900/30 border border-blue-200/80 dark:border-blue-800/60 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+                            <Smartphone className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/60 px-2 py-0.5 rounded-full">
+                                    Disponible para Celulares
+                                </span>
+                                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Android y iPhone</span>
+                            </div>
+                            <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white mt-0.5">
+                                Instala la aplicación en tu teléfono
+                            </h3>
+                            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 max-w-xl">
+                                Accede en pantalla completa, más rápido y disponible sin conexión. Sin necesidad de descargar archivos pesados.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onOpenInstallModal}
+                        className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+                    >
+                        <Download className="w-4 h-4" />
+                        <span>Instalar en mi Celular</span>
+                    </button>
+                </div>
+            )}
 
             {/* KPI STATS ROW */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

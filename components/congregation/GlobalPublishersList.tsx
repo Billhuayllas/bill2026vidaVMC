@@ -5,8 +5,9 @@ import { fetchAllMinistryReports } from '../../lib/supabasePagination';
 import { useCongregation } from '../../lib/CongregationContext';
 import { isReportAuxiliar } from './utils';
 import { BulkCardsModal } from './BulkCardsModal';
-import { DocumentPreviewModal } from './DocumentPreviewModal';
+import { DocumentPreviewModal, DocumentPreviewVariant } from './DocumentPreviewModal';
 import { printHtmlDocument, downloadHtmlAsPdf } from './printUtils';
+import { generateCardPagesArray, fetchReportsForServiceYear } from './s21CardGenerator';
 import html2pdf from 'html2pdf.js';
 import { 
     Users, 
@@ -60,12 +61,15 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
     const [showBulkCardsModal, setShowBulkCardsModal] = useState<boolean>(false);
     const [copiedShare, setCopiedShare] = useState<boolean>(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+    const [isLoadingCardsPreview, setIsLoadingCardsPreview] = useState<boolean>(false);
     const [previewModalData, setPreviewModalData] = useState<{
         isOpen: boolean;
         pages: string[];
         title: string;
         fileName: string;
         layoutLabel?: string;
+        variants?: DocumentPreviewVariant[];
+        activeVariantId?: string;
     } | null>(null);
 
 
@@ -690,18 +694,173 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
         return { tableHtml, fileName, title, serviceYear };
     };
 
-    const handlePreviewListPdf = () => {
+    const loadReportsIfNeeded = async (sYear: number) => {
+        if (serviceYearReports && serviceYearReports.length > 0) {
+            return serviceYearReports;
+        }
+        try {
+            const reports = await fetchReportsForServiceYear(sYear, currentCongregation?.id);
+            setServiceYearReports(reports);
+            return reports;
+        } catch (e) {
+            console.error("Error fetching reports for S-21:", e);
+            return [];
+        }
+    };
+
+    const handlePreviewCardsPdf = async () => {
+        if (!data || data.length === 0) {
+            alert('No hay publicadores en el filtro actual para generar tarjetas.');
+            return;
+        }
+        if (isLoadingCardsPreview) return;
+        setIsLoadingCardsPreview(true);
+
+        try {
+            const currentDate = new Date();
+            const curM = currentDate.getMonth() + 1;
+            const curY = currentDate.getFullYear();
+            const serviceYear = curM >= 9 ? curY + 1 : curY;
+            const congName = currentCongregation?.name || 'Congregación';
+
+            const filteredPubs = data.map(d => d.publisher);
+            const reports = await loadReportsIfNeeded(serviceYear);
+
+            // Generate S-21 Card Pages (2 in 1 A4)
+            const cardPages = generateCardPagesArray(filteredPubs, reports, globalMembers, '2', serviceYear);
+            
+            // Build list data for variant toggle
+            const { tableHtml, fileName: listFileName, title: listTitle } = buildListDocumentData();
+
+            let filterSlug = 'Publicadores';
+            if (filterType === 'precursor regular') filterSlug = 'Precursores_Regulares';
+            else if (filterType === 'precursor especial') filterSlug = 'Precursores_Especiales';
+            else if (filterType === 'anciano') filterSlug = 'Ancianos';
+            else if (filterType === 'siervo') filterSlug = 'Siervos';
+            else if (filterType === 'inactivo') filterSlug = 'Inactivos';
+            else if (filterType.startsWith('grupo:')) {
+                const gid = filterType.replace('grupo:', '');
+                const gName = gid === 'unassigned' ? 'Sin_Grupo' : gid === 'estudiante_vmt' ? 'Escuela_VMT' : groups.find(g => String(g.id) === gid)?.nombre?.replace(/\s+/g, '_') || 'Grupo';
+                filterSlug = `Grupo_${gName}`;
+            }
+
+            const congSlug = congName.replace(/\s+/g, '_');
+            const cardsTitle = `TARJETAS S-21 - ${congName.toUpperCase()}`;
+            const cardsFileName = `Tarjetas_S21_${filterSlug}_${congSlug}_${serviceYear}.pdf`;
+
+            const variants: DocumentPreviewVariant[] = [
+                {
+                    id: 'cards',
+                    label: `Tarjetas S-21 (${filteredPubs.length})`,
+                    icon: 'cards',
+                    title: cardsTitle,
+                    fileName: cardsFileName,
+                    pages: cardPages,
+                    layoutLabel: '2 en 1 (A4)',
+                    subtitle: `Tarjetas S-21 de Registro de Publicador (${cardPages.length} páginas para ${filteredPubs.length} publicadores)`
+                },
+                {
+                    id: 'list',
+                    label: `Padrón / Lista (${filteredPubs.length})`,
+                    icon: 'table',
+                    title: listTitle,
+                    fileName: listFileName,
+                    pages: [tableHtml],
+                    layoutLabel: 'Padrón Oficial',
+                    subtitle: `Listado oficial de la congregación (${filteredPubs.length} registros)`
+                }
+            ];
+
+            setPreviewModalData({
+                isOpen: true,
+                pages: cardPages,
+                title: cardsTitle,
+                fileName: cardsFileName,
+                layoutLabel: '2 en 1 (A4)',
+                variants,
+                activeVariantId: 'cards'
+            });
+        } catch (err) {
+            console.error("Error generating cards preview:", err);
+            alert("Hubo un error al generar la vista previa de las tarjetas S-21.");
+        } finally {
+            setIsLoadingCardsPreview(false);
+        }
+    };
+
+    const handlePreviewListPdf = async () => {
         if (!data || data.length === 0) {
             alert('No hay publicadores en el filtro actual para visualizar.');
             return;
         }
+
+        const currentDate = new Date();
+        const curM = currentDate.getMonth() + 1;
+        const curY = currentDate.getFullYear();
+        const serviceYear = curM >= 9 ? curY + 1 : curY;
+        const congName = currentCongregation?.name || 'Congregación';
+
         const { tableHtml, fileName, title } = buildListDocumentData();
+        const filteredPubs = data.map(d => d.publisher);
+
+        let filterSlug = 'Publicadores';
+        if (filterType === 'precursor regular') filterSlug = 'Precursores_Regulares';
+        else if (filterType === 'precursor especial') filterSlug = 'Precursores_Especiales';
+        else if (filterType === 'anciano') filterSlug = 'Ancianos';
+        else if (filterType === 'siervo') filterSlug = 'Siervos';
+        else if (filterType === 'inactivo') filterSlug = 'Inactivos';
+        else if (filterType.startsWith('grupo:')) {
+            const gid = filterType.replace('grupo:', '');
+            const gName = gid === 'unassigned' ? 'Sin_Grupo' : gid === 'estudiante_vmt' ? 'Escuela_VMT' : groups.find(g => String(g.id) === gid)?.nombre?.replace(/\s+/g, '_') || 'Grupo';
+            filterSlug = `Grupo_${gName}`;
+        }
+        const congSlug = congName.replace(/\s+/g, '_');
+        const cardsTitle = `TARJETAS S-21 - ${congName.toUpperCase()}`;
+        const cardsFileName = `Tarjetas_S21_${filterSlug}_${congSlug}_${serviceYear}.pdf`;
+
+        // Pre-generate cards if reports are loaded or on the fly
+        let cardPages: string[] = [];
+        try {
+            const reports = await loadReportsIfNeeded(serviceYear);
+            cardPages = generateCardPagesArray(filteredPubs, reports, globalMembers, '2', serviceYear);
+        } catch (e) {
+            console.error("Non-fatal cards pre-generation error", e);
+        }
+
+        const variants: DocumentPreviewVariant[] = [
+            {
+                id: 'list',
+                label: `Padrón / Lista (${filteredPubs.length})`,
+                icon: 'table',
+                title,
+                fileName,
+                pages: [tableHtml],
+                layoutLabel: 'Padrón Oficial',
+                subtitle: `Listado oficial de la congregación (${filteredPubs.length} registros)`
+            }
+        ];
+
+        if (cardPages.length > 0) {
+            variants.push({
+                id: 'cards',
+                label: `Tarjetas S-21 (${filteredPubs.length})`,
+                icon: 'cards',
+                title: cardsTitle,
+                fileName: cardsFileName,
+                pages: cardPages,
+                layoutLabel: '2 en 1 (A4)',
+                subtitle: `Tarjetas S-21 de Registro de Publicador (${cardPages.length} páginas para ${filteredPubs.length} publicadores)`
+            });
+        }
+
         setPreviewModalData({
             isOpen: true,
             pages: [tableHtml],
             title,
             fileName,
-            layoutLabel: 'Padrón Oficial'
+            layoutLabel: 'Padrón Oficial',
+            variants,
+            activeVariantId: 'list'
         });
     };
 
@@ -752,105 +911,54 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                         </div>
                     </div>
                     
-                    {/* Action buttons toolbar - Organized with clear contrast, dividers and mobile grid */}
-                    <div className="w-full lg:w-auto flex flex-col gap-3">
-                        {/* Mobile Category 1: PDF & Export Actions */}
-                        <div className="flex flex-col gap-1.5">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block sm:hidden">
-                                📄 Exportación & Documentos
-                            </span>
-                            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full">
-                                <button
-                                    onClick={handlePreviewListPdf}
-                                    className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white border border-indigo-700 transition-all duration-150 flex items-center justify-center gap-2 shadow-sm shadow-indigo-600/30 active:scale-95 text-center"
-                                    title="Previsualizar documento antes de imprimir o descargar"
-                                >
-                                    <Eye className="w-4 h-4 shrink-0" strokeWidth={2.4} />
-                                    <span className="truncate">Previsualizar</span>
-                                </button>
+                    {/* Action buttons toolbar - Clean management group */}
+                    <div className="w-full lg:w-auto flex flex-wrap items-center gap-2">
+                        {currentCongregation && (
+                            <button
+                                onClick={() => {
+                                    const shareUrl = `${window.location.origin}${window.location.pathname}?view=publisher_report&congregation_id=${currentCongregation.id}`;
+                                    navigator.clipboard.writeText(shareUrl).then(() => {
+                                        setCopiedShare(true);
+                                        setTimeout(() => setCopiedShare(false), 2500);
+                                    }).catch(() => {
+                                        alert('Enlace: ' + shareUrl);
+                                    });
+                                }}
+                                className={`w-full sm:w-auto px-3.5 py-2.5 rounded-xl font-extrabold text-xs border transition-all duration-150 flex items-center justify-center gap-2 shadow-xs active:scale-95 cursor-pointer text-center ${
+                                    copiedShare
+                                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-emerald-600/30'
+                                    : 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-700 shadow-indigo-600/25'
+                                }`}
+                                title="Compartir padrón de precursores y fichas S-21"
+                            >
+                                {copiedShare ? <CheckCircle2 className="w-4 h-4 text-white shrink-0" /> : <Share2 className="w-4 h-4 text-white shrink-0" strokeWidth={2.2} />}
+                                <span className="truncate">{copiedShare ? '¡Copiado!' : 'Compartir'}</span>
+                            </button>
+                        )}
 
-                                <button
-                                    onClick={handleDownloadFilteredListPdf}
-                                    disabled={isGeneratingPdf}
-                                    className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white border border-rose-700 transition-all duration-150 flex items-center justify-center gap-2 shadow-sm shadow-rose-600/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-center"
-                                    title="Descargar lista filtrada en formato PDF"
-                                >
-                                    {isGeneratingPdf ? (
-                                        <Loader2 className="w-4 h-4 text-white animate-spin shrink-0" />
-                                    ) : (
-                                        <FileText className="w-4 h-4 text-white shrink-0" strokeWidth={2.4} />
-                                    )}
-                                    <span className="truncate">{isGeneratingPdf ? 'Generando...' : 'Lista (PDF)'}</span>
-                                </button>
+                        {!isReadOnly && (
+                            <button
+                                onClick={handleToggleEditMode}
+                                className={`w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs border transition-all duration-150 flex items-center justify-center gap-2 shadow-xs active:scale-95 text-center ${
+                                    isEditMode 
+                                    ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700 shadow-emerald-600/30' 
+                                    : 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-600 shadow-amber-500/25'
+                                }`}
+                            >
+                                {isEditMode ? <Unlock className="w-4 h-4 shrink-0" strokeWidth={2.4} /> : <Lock className="w-4 h-4 shrink-0" strokeWidth={2.4} />}
+                                <span className="truncate">{isEditMode ? 'Edición Activa' : 'Modo Edición'}</span>
+                            </button>
+                        )}
 
-                                <button
-                                    onClick={() => setShowBulkCardsModal(true)}
-                                    className="col-span-2 sm:col-span-1 w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white border border-blue-700 transition-all duration-150 flex items-center justify-center gap-2 shadow-sm shadow-blue-600/30 active:scale-95 text-center"
-                                    title="Descargar tarjetas S-21 masivas en PDF (2 en 1)"
-                                >
-                                    <IdCard className="w-4 h-4 shrink-0" strokeWidth={2.4} />
-                                    <span className="truncate">Tarjetas S-21</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Visual Divider between functional groups */}
-                        <div className="w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5"></div>
-
-                        {/* Mobile Category 2: Management & Sharing */}
-                        <div className="flex flex-col gap-1.5">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block sm:hidden">
-                                ⚙️ Acciones & Control
-                            </span>
-                            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full">
-                                {currentCongregation && (
-                                    <button
-                                        onClick={() => {
-                                            const shareUrl = `${window.location.origin}${window.location.pathname}?view=publisher_report&congregation_id=${currentCongregation.id}`;
-                                            navigator.clipboard.writeText(shareUrl).then(() => {
-                                                setCopiedShare(true);
-                                                setTimeout(() => setCopiedShare(false), 2500);
-                                            }).catch(() => {
-                                                alert('Enlace: ' + shareUrl);
-                                            });
-                                        }}
-                                        className={`w-full sm:w-auto px-3.5 py-2.5 rounded-xl font-extrabold text-xs border transition-all duration-150 flex items-center justify-center gap-2 shadow-xs active:scale-95 cursor-pointer text-center ${
-                                            copiedShare
-                                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-emerald-600/30'
-                                            : 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-700 shadow-indigo-600/25'
-                                        }`}
-                                        title="Compartir padrón de precursores y fichas S-21"
-                                    >
-                                        {copiedShare ? <CheckCircle2 className="w-4 h-4 text-white shrink-0" /> : <Share2 className="w-4 h-4 text-white shrink-0" strokeWidth={2.2} />}
-                                        <span className="truncate">{copiedShare ? '¡Copiado!' : 'Compartir'}</span>
-                                    </button>
-                                )}
-
-                                {!isReadOnly && (
-                                    <button
-                                        onClick={handleToggleEditMode}
-                                        className={`w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs border transition-all duration-150 flex items-center justify-center gap-2 shadow-xs active:scale-95 text-center ${
-                                            isEditMode 
-                                            ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700 shadow-emerald-600/30' 
-                                            : 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-600 shadow-amber-500/25'
-                                        }`}
-                                    >
-                                        {isEditMode ? <Unlock className="w-4 h-4 shrink-0" strokeWidth={2.4} /> : <Lock className="w-4 h-4 shrink-0" strokeWidth={2.4} />}
-                                        <span className="truncate">{isEditMode ? 'Edición Activa' : 'Modo Edición'}</span>
-                                    </button>
-                                )}
-
-                                {isEditMode && (
-                                    <button
-                                        onClick={() => setShowGroupModal(true)}
-                                        className="col-span-2 sm:col-span-1 w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 transition-all duration-150 flex items-center justify-center gap-2 shadow-sm active:scale-95 text-center border border-slate-950 dark:border-white"
-                                    >
-                                        <Layers className="w-4 h-4 shrink-0" strokeWidth={2.2} />
-                                        <span className="truncate">Gestionar Grupos</span>
-                                    </button>
-                                )}
-                            </div>
-                        </div>
+                        {isEditMode && (
+                            <button
+                                onClick={() => setShowGroupModal(true)}
+                                className="col-span-2 sm:col-span-1 w-full sm:w-auto px-3.5 py-2.5 rounded-xl cursor-pointer font-extrabold text-xs bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 transition-all duration-150 flex items-center justify-center gap-2 shadow-sm active:scale-95 text-center border border-slate-950 dark:border-white"
+                            >
+                                <Layers className="w-4 h-4 shrink-0" strokeWidth={2.2} />
+                                <span className="truncate">Gestionar Grupos</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -944,6 +1052,34 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                         <div className="block sm:hidden w-full h-px bg-blue-200/70 dark:bg-blue-900/60 my-0.5"></div>
 
                         <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+                            {/* Previsualizar Tarjetas S-21 button */}
+                            <button
+                                onClick={handlePreviewCardsPdf}
+                                disabled={isLoadingCardsPreview}
+                                className="w-full sm:w-auto text-xs font-extrabold px-3.5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white border border-blue-700 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 text-center"
+                                title="Previsualizar tarjetas de registro S-21 de los publicadores filtrados"
+                            >
+                                {isLoadingCardsPreview ? (
+                                    <Loader2 className="w-3.5 h-3.5 text-white animate-spin shrink-0" />
+                                ) : (
+                                    <Eye className="w-3.5 h-3.5 shrink-0" strokeWidth={2.4} />
+                                )}
+                                <span className="truncate">
+                                    {isLoadingCardsPreview ? 'Generando...' : `Previsualizar Tarjetas S-21 (${data.length})`}
+                                </span>
+                            </button>
+
+                            {/* Previsualizar Lista button */}
+                            <button
+                                onClick={handlePreviewListPdf}
+                                className="w-full sm:w-auto text-xs font-extrabold px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white border border-indigo-700 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 text-center"
+                                title="Previsualizar padrón/lista oficial antes de imprimir o descargar"
+                            >
+                                <Eye className="w-3.5 h-3.5 shrink-0" strokeWidth={2.4} />
+                                <span className="truncate">Previsualizar Lista ({data.length})</span>
+                            </button>
+
+                            {/* Descargar Lista PDF button */}
                             <button
                                 onClick={handleDownloadFilteredListPdf}
                                 disabled={isGeneratingPdf}
@@ -951,26 +1087,30 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                                 title="Descargar listado filtrado en PDF"
                             >
                                 {isGeneratingPdf ? (
-                                    <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                                    <Loader2 className="w-3.5 h-3.5 text-white animate-spin shrink-0" />
                                 ) : (
-                                    <FileText className="w-3.5 h-3.5 text-white" />
+                                    <FileText className="w-3.5 h-3.5 text-white shrink-0" strokeWidth={2.4} />
                                 )}
                                 <span className="truncate">{isGeneratingPdf ? 'Generando...' : `Lista PDF (${data.length})`}</span>
                             </button>
+
+                            {/* Opciones Lote S-21 button */}
                             <button
                                 onClick={() => setShowBulkCardsModal(true)}
-                                className="w-full sm:w-auto text-xs font-extrabold px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:bg-blue-800 border border-blue-700 shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 text-center"
-                                title="Descargar tarjetas S-21 de los publicadores filtrados"
+                                className="w-full sm:w-auto text-xs font-extrabold px-3 py-2 bg-slate-700 text-white rounded-xl hover:bg-slate-800 active:bg-slate-900 border border-slate-600 shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 text-center"
+                                title="Configurar opciones avanzadas de descarga en lote de tarjetas S-21"
                             >
-                                <IdCard className="w-3.5 h-3.5" />
-                                <span className="truncate">{data.length} Tarjetas S-21</span>
+                                <IdCard className="w-3.5 h-3.5 shrink-0" strokeWidth={2.4} />
+                                <span className="truncate">Opciones S-21</span>
                             </button>
+
+                            {/* Limpiar filtros */}
                             <button
                                 onClick={() => { setFilterType('todos'); setSearchTerm(''); }}
                                 className="col-span-2 sm:col-span-1 w-full sm:w-auto text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 px-3 py-2 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1 text-center"
                                 title="Quitar todos los filtros"
                             >
-                                <X className="w-3.5 h-3.5" />
+                                <X className="w-3.5 h-3.5 shrink-0" />
                                 <span>Limpiar Filtros</span>
                             </button>
                         </div>
@@ -1537,6 +1677,8 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                     fileName={previewModalData.fileName}
                     pagesHtml={previewModalData.pages || []}
                     layoutLabel={previewModalData.layoutLabel}
+                    variants={previewModalData.variants}
+                    activeVariantId={previewModalData.activeVariantId}
                 />
             )}
         </div>

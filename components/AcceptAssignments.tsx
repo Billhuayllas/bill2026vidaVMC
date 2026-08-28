@@ -381,7 +381,7 @@ const AcceptAssignments: React.FC<{ participant: string }> = ({ participant }) =
                     justify-content: flex-end;
                     align-items: center;
                     gap: 20px;
-                    z-index: 100;
+                    z-index: 45;
                     border-top: 1px solid var(--border-color);
                 }
                 .save-status-message { font-weight: 600; font-size: 0.9rem; }

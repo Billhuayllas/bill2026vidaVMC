@@ -106,6 +106,13 @@ const EditableMonthRow: React.FC<EditableMonthRowProps> = ({
 
     const handleLocalSave = async () => {
         if (!currentCongregation || !selectedPublisher) return;
+
+        // Validation: Precursor Auxiliar must have at least 1 hour if participated
+        if (localAuxPrecursor && localParticipo && Number(localHoras || 0) < 1) {
+            alert("Un Precursor Auxiliar debe informar al menos 1 hora. Si participó sin horas, desmarque la casilla de Precursor Auxiliar para guardarlo como Publicador.");
+            return;
+        }
+
         setSaving(true);
         setSaved(false);
         try {
@@ -1050,7 +1057,7 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
             `}</style>
             
             {/* Control Dashboard Header Panel */}
-            <div className="sticky top-0 z-[60] mb-5 shadow-md md:shadow-none no-print" style={{ display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: 'white', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)' }}>
+            <div className="sticky top-[52px] sm:top-[58px] z-20 mb-5 shadow-md md:shadow-none no-print" style={{ display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: 'white', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
                     <div>
                         <h2 style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>

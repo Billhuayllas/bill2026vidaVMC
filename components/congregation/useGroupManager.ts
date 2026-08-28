@@ -9,7 +9,19 @@ export const useGroupManager = () => {
     const { currentCongregation } = useCongregation();
     const [groups, setGroups] = useState<Group[]>([]);
     const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
-    const [members, setMembers] = useState<GroupMember[]>([]);
+    const [members, setMembersState] = useState<GroupMember[]>([]);
+    const membersRef = useRef<GroupMember[]>([]);
+
+    const setMembers = (updater: GroupMember[] | ((prev: GroupMember[]) => GroupMember[])) => {
+        if (typeof updater === 'function') {
+            const next = updater(membersRef.current);
+            membersRef.current = next;
+            setMembersState(next);
+        } else {
+            membersRef.current = updater;
+            setMembersState(updater);
+        }
+    };
     const [masterPublishers, setMasterPublishers] = useState<Publisher[]>([]);
     const [reports, setReportsState] = useState<ReportsMap>({});
     const reportsRef = useRef<ReportsMap>({});
@@ -956,6 +968,9 @@ export const useGroupManager = () => {
             if (reportEntry) {
                 let combinedNotas = reportEntry.notas || '';
                 
+                // Check if an explicit rol tag was passed in notas
+                const noteRolMatch = (reportEntry.notas || '').match(/\{\{rol:(.*?)\}\}/);
+
                 // Clean any existing metadata tags from combinedNotas to avoid duplication
                 combinedNotas = combinedNotas.replace(/\{\{locked:(true|false)\}\}/g, '').trim();
                 combinedNotas = combinedNotas.replace(/\{\{participo:(true|false)\}\}/g, '').trim();
@@ -974,9 +989,10 @@ export const useGroupManager = () => {
                 }
 
                 // Find current group member info to get role and group_id
-                const memberInfo = members.find(m => m.publicador_nombre === publisherName) || 
+                const memberInfo = (membersRef.current && membersRef.current.find(m => m.publicador_nombre === publisherName)) || 
+                                   members.find(m => m.publicador_nombre === publisherName) || 
                                    globalMembers.find(m => m.publicador_nombre === publisherName);
-                const currentRol = memberInfo ? memberInfo.rol : 'Publicador';
+                const currentRol = noteRolMatch ? noteRolMatch[1].trim() : (memberInfo ? memberInfo.rol : 'Publicador');
                 const currentGroupId = memberInfo ? memberInfo.grupo_id : selectedGroupId;
 
                 if (currentRol) {

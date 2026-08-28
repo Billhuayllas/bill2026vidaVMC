@@ -19,14 +19,18 @@ import SharedPublisherReport from './components/SharedPublisherReport';
 import ConfiguracionAcceso, { ALL_TABS } from './components/ConfiguracionAcceso'; 
 import { supabase } from './lib/supabase';
 import { CongregationProvider, useCongregation } from './lib/CongregationContext';
+import { usePWAInstall } from './lib/usePWAInstall';
+import InstallAppModal from './components/InstallAppModal';
 
 // --- CONGREGATION SELECTOR COMPONENT ---
 interface CongregationSelectorProps {
     onTokenSuccess: (data: any, saveToken?: boolean) => void;
     onSetSuperAdmin: (status: boolean) => void;
+    onOpenInstallModal?: () => void;
+    isInstalled?: boolean;
 }
 
-const CongregationSelector: React.FC<CongregationSelectorProps> = ({ onTokenSuccess, onSetSuperAdmin }) => {
+const CongregationSelector: React.FC<CongregationSelectorProps> = ({ onTokenSuccess, onSetSuperAdmin, onOpenInstallModal, isInstalled }) => {
     const { setCongregation, refreshCongregations } = useCongregation();
     
     // Views: 'login' (default key input), 'admin_login' (password), 'admin_dashboard' (list)
@@ -171,7 +175,27 @@ const CongregationSelector: React.FC<CongregationSelectorProps> = ({ onTokenSucc
                 {loading ? <i className="fas fa-spinner fa-spin"></i> : 'Ingresar'}
             </button>
 
-            <div style={{ marginTop: '40px', textAlign: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
+            <div style={{ marginTop: '30px', textAlign: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+                {onOpenInstallModal && !isInstalled && (
+                    <button 
+                        onClick={onOpenInstallModal} 
+                        style={{ 
+                            background: '#f0fdf4', 
+                            border: '1px solid #bbf7d0', 
+                            color: '#166534', 
+                            fontSize: '0.85rem', 
+                            cursor: 'pointer', 
+                            fontWeight: '700', 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '8px',
+                            padding: '8px 16px',
+                            borderRadius: '10px'
+                        }}
+                    >
+                        <i className="fas fa-mobile-screen-button text-emerald-600"></i> Instalar App en Celular (Android & iOS)
+                    </button>
+                )}
                 <button 
                     onClick={() => { setView('admin_login'); setErrorMsg(''); }} 
                     style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'none', fontWeight: '500' }}
@@ -244,7 +268,14 @@ const CongregationSelector: React.FC<CongregationSelectorProps> = ({ onTokenSucc
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', padding: '20px' }}>
             <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', maxWidth: '450px', width: '100%' }}>
                 <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                    <img src="https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?auto=format&fit=crop&q=80&w=150&h=150" alt="Logo" style={{ width: '80px', height: '80px', borderRadius: '16px', objectFit: 'cover', margin: '0 auto 20px', display: 'block', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                    <img 
+                        src="/icon-192.png" 
+                        alt="Logo" 
+                        style={{ width: '80px', height: '80px', borderRadius: '20px', objectFit: 'cover', margin: '0 auto 20px', display: 'block', boxShadow: '0 8px 16px -2px rgba(0, 0, 0, 0.1)' }} 
+                        onError={(e) => { 
+                            (e.currentTarget as HTMLImageElement).src = "https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?auto=format&fit=crop&q=80&w=150&h=150"; 
+                        }} 
+                    />
                 </div>
                 {view === 'login' && renderLogin()}
                 {view === 'admin_login' && renderAdminLogin()}
@@ -257,6 +288,9 @@ const CongregationSelector: React.FC<CongregationSelectorProps> = ({ onTokenSucc
 // --- MAIN APP CONTENT ---
 const AppContent: React.FC = () => {
     const { currentCongregation, setCongregation, loading } = useCongregation();
+    const pwaState = usePWAInstall();
+    const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+    const [dismissFloatingBanner, setDismissFloatingBanner] = useState(false);
     
     // Default tabs for Admin (Everything is editable by default for admin)
     const defaultNavItems = [
@@ -302,12 +336,26 @@ const AppContent: React.FC = () => {
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
     const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
         if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('vmt_view_mode');
-            if (saved === 'desktop' || saved === 'mobile') return saved;
-            return window.innerWidth < 1024 ? 'mobile' : 'desktop';
+            const manual = sessionStorage.getItem('vmt_manual_view');
+            if (manual === 'desktop' || manual === 'mobile') return manual;
+            const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(window.navigator.userAgent) || window.innerWidth < 1024;
+            return isMobileDevice ? 'mobile' : 'desktop';
         }
         return 'desktop';
     });
+
+    useEffect(() => {
+        const handleResize = () => {
+            const manual = sessionStorage.getItem('vmt_manual_view');
+            if (!manual && typeof window !== 'undefined') {
+                const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(window.navigator.userAgent) || window.innerWidth < 1024;
+                setViewMode(isMobileDevice ? 'mobile' : 'desktop');
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
     const [specialView, setSpecialView] = useState<{view: string; participant?: string; congregationId?: number} | null>(null);
     const [isLoadingAccess, setIsLoadingAccess] = useState(true); // Start loading true to check persistent token
     const [accessLabel, setAccessLabel] = useState<string | null>(null);
@@ -483,12 +531,14 @@ const AppContent: React.FC = () => {
             // Theme and View Mode logic
             const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
             setTheme(prefersDark ? 'dark' : 'light');
-            const savedViewMode = localStorage.getItem('vmt_view_mode');
-            if (savedViewMode === 'desktop' || savedViewMode === 'mobile') {
-                setViewMode(savedViewMode);
+            
+            // View Mode logic: respect manual session preference or current screen width
+            const manualView = typeof window !== 'undefined' ? sessionStorage.getItem('vmt_manual_view') : null;
+            if (manualView === 'desktop' || manualView === 'mobile') {
+                setViewMode(manualView);
             } else {
-                const isMobileDevice = () => /Mobi/i.test(window.navigator.userAgent) || window.innerWidth < 1024;
-                setViewMode(isMobileDevice() ? 'mobile' : 'desktop');
+                const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(window.navigator.userAgent) || window.innerWidth < 1024;
+                setViewMode(isMobileDevice ? 'mobile' : 'desktop');
             }
 
             // --- 1. DIRECT LINK HANDLING (Token URL) ---
@@ -577,7 +627,8 @@ const AppContent: React.FC = () => {
         setViewMode(prevMode => {
             const next = prevMode === 'desktop' ? 'mobile' : 'desktop';
             if (typeof window !== 'undefined') {
-                localStorage.setItem('vmt_view_mode', next);
+                sessionStorage.setItem('vmt_manual_view', next);
+                localStorage.removeItem('vmt_view_mode'); // Clear legacy persistent item
             }
             return next;
         });
@@ -597,7 +648,21 @@ const AppContent: React.FC = () => {
 
     // If no congregation is selected and we are NOT in a specific token view (admin mode without token), show selector
     if (!currentCongregation && !specialView) {
-        return <CongregationSelector onTokenSuccess={applyAccessConfig} onSetSuperAdmin={setIsSuperAdmin} />;
+        return (
+            <>
+                <CongregationSelector 
+                    onTokenSuccess={applyAccessConfig} 
+                    onSetSuperAdmin={setIsSuperAdmin} 
+                    onOpenInstallModal={() => setIsInstallModalOpen(true)} 
+                    isInstalled={pwaState.isInstalled}
+                />
+                <InstallAppModal 
+                    isOpen={isInstallModalOpen} 
+                    onClose={() => setIsInstallModalOpen(false)} 
+                    pwaState={pwaState} 
+                />
+            </>
+        );
     }
 
     if (specialView?.view === 'assignments') {
@@ -620,6 +685,8 @@ const AppContent: React.FC = () => {
                 toggleViewMode={toggleViewMode}
                 congregationName={currentCongregation?.name}
                 accessLabel={isSuperAdmin ? "Super Admin" : accessLabel}
+                onOpenInstallModal={() => setIsInstallModalOpen(true)}
+                isInstalled={pwaState.isInstalled}
             />
             {/* The banner "Vista: ..." has been removed as requested */}
             
@@ -640,7 +707,12 @@ const AppContent: React.FC = () => {
             )}
             <main>
                 <div style={{ display: activeTab === 'Inicio' ? 'block' : 'none' }}>
-                    <Inicio accessLabel={isSuperAdmin ? null : accessLabel} onNavigate={setActiveTab} />
+                    <Inicio 
+                        accessLabel={isSuperAdmin ? null : accessLabel} 
+                        onNavigate={setActiveTab} 
+                        onOpenInstallModal={() => setIsInstallModalOpen(true)} 
+                        isInstalled={pwaState.isInstalled}
+                    />
                 </div>
                 
                 {navItems.includes('Recordatorios') && (
@@ -730,6 +802,44 @@ const AppContent: React.FC = () => {
                     </div>
                 )}
             </main>
+
+            <InstallAppModal 
+                isOpen={isInstallModalOpen} 
+                onClose={() => setIsInstallModalOpen(false)} 
+                pwaState={pwaState} 
+            />
+
+            {/* Mobile / PWA floating install trigger pill - ONLY when NOT installed and NOT standalone */}
+            {!pwaState.isStandalone && !pwaState.isInstalled && !dismissFloatingBanner && (
+                <aside aria-label="Aviso de instalación móvil" className="fixed bottom-3 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-xs z-40">
+                    <div className="bg-slate-900/95 dark:bg-slate-800/95 text-white p-2.5 sm:p-3 rounded-2xl shadow-xl border border-slate-700/80 backdrop-blur-md flex items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-sm">
+                                <i className="fas fa-mobile-screen-button text-white text-xs"></i>
+                            </div>
+                            <div className="text-xs truncate">
+                                <span className="font-bold block text-white leading-tight">Instalar en tu Celular</span>
+                                <span className="text-[10px] text-slate-300">Android & iPhone</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                            <button
+                                onClick={() => setIsInstallModalOpen(true)}
+                                className="py-1 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                            >
+                                Instalar
+                            </button>
+                            <button
+                                onClick={() => setDismissFloatingBanner(true)}
+                                className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                                title="Cerrar aviso"
+                            >
+                                <i className="fas fa-times text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+            )}
         </div>
     );
 };

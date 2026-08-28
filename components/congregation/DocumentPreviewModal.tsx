@@ -11,9 +11,23 @@ import {
     Eye, 
     FileText,
     Loader2,
-    CheckCircle2
+    CheckCircle2,
+    IdCard,
+    ListFilter
 } from 'lucide-react';
 import { printHtmlDocument, downloadHtmlAsPdf } from './printUtils';
+
+export interface DocumentPreviewVariant {
+    id: string;
+    label: string;
+    icon?: 'table' | 'cards' | 'file';
+    title: string;
+    fileName: string;
+    pages: string[];
+    layoutLabel?: string;
+    subtitle?: string;
+    badgeCount?: number;
+}
 
 interface DocumentPreviewModalProps {
     isOpen: boolean;
@@ -23,17 +37,45 @@ interface DocumentPreviewModalProps {
     pagesHtml: string[];
     layoutLabel?: string;
     subtitle?: string;
+    variants?: DocumentPreviewVariant[];
+    activeVariantId?: string;
+    onVariantChange?: (variantId: string) => void;
 }
 
 export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     isOpen,
     onClose,
-    title,
-    fileName,
+    title: defaultTitle,
+    fileName: defaultFileName,
     pagesHtml = [],
-    layoutLabel,
-    subtitle
+    layoutLabel: defaultLayoutLabel,
+    subtitle: defaultSubtitle,
+    variants,
+    activeVariantId: propActiveVariantId,
+    onVariantChange
 }) => {
+    const [activeVariantId, setActiveVariantId] = useState<string>(() => {
+        if (propActiveVariantId) return propActiveVariantId;
+        if (variants && variants.length > 0) return variants[0].id;
+        return 'default';
+    });
+
+    useEffect(() => {
+        if (propActiveVariantId) {
+            setActiveVariantId(propActiveVariantId);
+        } else if (variants && variants.length > 0 && !variants.some(v => v.id === activeVariantId)) {
+            setActiveVariantId(variants[0].id);
+        }
+    }, [propActiveVariantId, variants]);
+
+    const currentVariant = variants?.find(v => v.id === activeVariantId);
+
+    const activeTitle = currentVariant ? currentVariant.title : defaultTitle;
+    const activeFileName = currentVariant ? currentVariant.fileName : defaultFileName;
+    const activePages = currentVariant ? currentVariant.pages : pagesHtml;
+    const activeLayoutLabel = currentVariant ? currentVariant.layoutLabel : defaultLayoutLabel;
+    const activeSubtitle = currentVariant ? currentVariant.subtitle : defaultSubtitle;
+
     const [currentPage, setCurrentPage] = useState<number>(0);
     const [scale, setScale] = useState<number>(0.85);
     const [isPrinting, setIsPrinting] = useState<boolean>(false);
@@ -42,13 +84,12 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     const [viewMode, setViewMode] = useState<'single' | 'all'>('single');
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const safePages = pagesHtml || [];
+    const safePages = activePages || [];
     const totalPages = safePages.length;
 
     useEffect(() => {
         if (isOpen) {
             setCurrentPage(0);
-            // Default scale according to screen width
             if (window.innerWidth < 640) {
                 setScale(0.45);
             } else if (window.innerWidth < 1024) {
@@ -57,9 +98,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 setScale(0.85);
             }
         }
-    }, [isOpen]);
+    }, [isOpen, activeVariantId]);
 
-    if (!isOpen || totalPages === 0) return null;
+    if (!isOpen || (totalPages === 0 && (!variants || variants.length === 0))) return null;
 
     const fullHtmlDocument = safePages.join('');
 
@@ -67,7 +108,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         setIsPrinting(true);
         setStatusMsg('Enviando a impresión...');
         try {
-            printHtmlDocument(fullHtmlDocument, title);
+            printHtmlDocument(fullHtmlDocument, activeTitle);
             setTimeout(() => {
                 setIsPrinting(false);
                 setStatusMsg('');
@@ -82,7 +123,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     const handleDownload = async () => {
         setIsDownloading(true);
         try {
-            await downloadHtmlAsPdf(fullHtmlDocument, fileName, (msg) => setStatusMsg(msg));
+            await downloadHtmlAsPdf(fullHtmlDocument, activeFileName, (msg) => setStatusMsg(msg));
             setStatusMsg('¡Descarga completada!');
             setTimeout(() => {
                 setIsDownloading(false);
@@ -104,30 +145,70 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         else setScale(0.85);
     };
 
+    const handleSwitchVariant = (vId: string) => {
+        setActiveVariantId(vId);
+        setCurrentPage(0);
+        if (onVariantChange) onVariantChange(vId);
+    };
+
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-2 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-2 sm:p-4 overflow-hidden animate-in fade-in duration-200">
             <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-5xl h-[94vh] flex flex-col shadow-2xl overflow-hidden text-slate-100">
                 
                 {/* Header Bar */}
-                <div className="px-4 sm:px-6 py-3.5 bg-slate-800/90 border-b border-slate-700 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <div className="px-4 sm:px-6 py-3 bg-slate-800/95 border-b border-slate-750 flex flex-wrap items-center justify-between gap-3 shrink-0">
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center shrink-0">
                             <Eye className="w-5 h-5" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="font-extrabold text-sm sm:text-base text-white">{title}</h3>
-                                {layoutLabel && (
+                                <h3 className="font-extrabold text-sm sm:text-base text-white">{activeTitle}</h3>
+                                {activeLayoutLabel && (
                                     <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[10px] font-bold rounded-full">
-                                        {layoutLabel}
+                                        {activeLayoutLabel}
                                     </span>
                                 )}
                             </div>
                             <p className="text-[11px] text-slate-400 truncate max-w-[280px] sm:max-w-md">
-                                {subtitle || `Vista previa de impresión oficial (${totalPages} ${totalPages === 1 ? 'página' : 'páginas'})`}
+                                {activeSubtitle || `Vista previa de impresión oficial (${totalPages} ${totalPages === 1 ? 'página' : 'páginas'})`}
                             </p>
                         </div>
                     </div>
+
+                    {/* Document Variant Switcher Tabs (e.g. Lista / Padrón vs Tarjetas S-21) */}
+                    {variants && variants.length > 1 && (
+                        <div className="flex items-center bg-slate-950/80 p-1 rounded-xl border border-slate-700/80 gap-1 shadow-inner order-last sm:order-none w-full sm:w-auto justify-center">
+                            {variants.map(v => {
+                                const isActive = v.id === activeVariantId;
+                                return (
+                                    <button
+                                        key={v.id}
+                                        onClick={() => handleSwitchVariant(v.id)}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                            isActive 
+                                                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30' 
+                                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+                                        }`}
+                                    >
+                                        {v.id === 'cards' || v.icon === 'cards' ? (
+                                            <IdCard className="w-3.5 h-3.5" />
+                                        ) : (
+                                            <ListFilter className="w-3.5 h-3.5" />
+                                        )}
+                                        <span>{v.label}</span>
+                                        {v.pages && (
+                                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                                                isActive ? 'bg-blue-700 text-blue-100' : 'bg-slate-800 text-slate-400'
+                                            }`}>
+                                                {v.pages.length}p
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {/* Quick Action Buttons */}
                     <div className="flex items-center gap-2">
@@ -301,7 +382,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 <div className="px-6 py-3 bg-slate-900 border-t border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-400 shrink-0">
                     <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-slate-500" />
-                        <span className="truncate max-w-[280px] sm:max-w-md">{fileName}</span>
+                        <span className="truncate max-w-[280px] sm:max-w-md">{activeFileName}</span>
                     </div>
                     <div className="flex items-center gap-3">
                         <span>A4 Oficial (210 x 297 mm)</span>

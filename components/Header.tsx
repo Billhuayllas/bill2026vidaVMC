@@ -29,7 +29,8 @@ import {
     BookUser,
     CalendarDays,
     Bell,
-    Database
+    Database,
+    Download
 } from 'lucide-react';
 
 const DBStatusIndicator: React.FC = () => {
@@ -92,6 +93,8 @@ interface HeaderProps {
     toggleViewMode: () => void;
     congregationName?: string;
     accessLabel?: string | null;
+    onOpenInstallModal?: () => void;
+    isInstalled?: boolean;
 }
 
 type NavGroup = 'Inicio' | 'Vida y Ministerio Teocrático' | 'Informes de Predicación' | 'Asistencia' | 'Configuración';
@@ -154,7 +157,7 @@ const TAB_ICONS: Record<string, React.FC<{ className?: string }>> = {
     "Configuración": Settings
 };
 
-const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, theme, toggleTheme, viewMode, toggleViewMode, congregationName, accessLabel }) => {
+const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, theme, toggleTheme, viewMode, toggleViewMode, congregationName, accessLabel, onOpenInstallModal, isInstalled }) => {
     const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [openDropdown, setOpenDropdown] = useState<NavGroup | null>(null);
     const { setCongregation } = useCongregation();
@@ -164,16 +167,51 @@ const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, them
     const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const headerRef = useRef<HTMLElement>(null);
 
-    // Close dropdown on click outside
+    // Close dropdown and mobile menu on click outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
                 setOpenDropdown(null);
+                setMobileMenuOpen(false);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    // Close mobile menu on Escape key press
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setMobileMenuOpen(false);
+                setOpenDropdown(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    // Close mobile menu on screen resize to desktop
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth >= 1024) {
+                setMobileMenuOpen(false);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Lock body scroll when mobile menu is open to prevent background bleed-through
+    useEffect(() => {
+        if (isMobileMenuOpen) {
+            const prevOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = prevOverflow;
+            };
+        }
+    }, [isMobileMenuOpen]);
 
     const handleSecretLogoClick = () => {
         if (tapTimeoutRef.current) {
@@ -195,6 +233,25 @@ const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, them
 
     const actionButtons = (
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }} className="shrink-0">
+            {onOpenInstallModal && !isInstalled && (
+                <button 
+                    onClick={onOpenInstallModal} 
+                    className="action-button hover:scale-105 active:scale-95 transition-transform group relative" 
+                    title="Descargar / Instalar App en tu Celular (Android & iOS)"
+                    style={{
+                        backgroundColor: 'var(--card-bg-color)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '10px'
+                    }}
+                >
+                    <i 
+                        className="fas fa-download" 
+                        style={{ color: '#10b981', fontSize: '15px' }}
+                    ></i>
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full"></span>
+                </button>
+            )}
             <button 
                 onClick={toggleViewMode} 
                 className="action-button hover:scale-105 active:scale-95 transition-transform" 
@@ -352,83 +409,127 @@ const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, them
     };
 
     return (
-        <header className="app-header bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/90 dark:border-slate-800/90 shadow-sm sticky top-0 z-50 py-1.5 sm:py-2" ref={headerRef}>
-            <div className="max-w-7xl mx-auto px-3 sm:px-6">
-                <div className="flex items-center justify-between gap-3 min-h-[50px] sm:min-h-[58px]">
-                    <div 
-                        className="flex items-center gap-2.5 sm:gap-3 select-none cursor-pointer min-w-0" 
-                        onClick={handleSecretLogoClick}
-                        title="Cambiar Congregación (5 toques)"
-                    >
-                        <div className="relative shrink-0">
-                            <img 
-                                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover shadow-sm border-2 border-indigo-500/20 dark:border-indigo-500/40" 
-                                src="https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?auto=format&fit=crop&q=80&w=150&h=150" 
-                                alt="Logo"
-                            />
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></div>
-                        </div>
-                        <div className="min-w-0">
-                            <div className="font-black text-slate-900 dark:text-white tracking-tight leading-tight text-sm sm:text-base truncate max-w-[130px] xs:max-w-[200px] sm:max-w-none">
-                                {congregationName || 'Sistema VMT'}
+        <>
+            <header 
+                className={`app-header bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/90 dark:border-slate-800/90 shadow-sm sticky top-0 ${isMobileMenuOpen ? 'z-[9999]' : 'z-[1000]'} py-1.5 sm:py-2 transition-colors duration-200`} 
+                ref={headerRef}
+            >
+                <div className="max-w-7xl mx-auto px-3 sm:px-6">
+                    <div className="flex items-center justify-between gap-3 min-h-[50px] sm:min-h-[58px]">
+                        <div 
+                            className="flex items-center gap-2.5 sm:gap-3 select-none cursor-pointer min-w-0" 
+                            onClick={handleSecretLogoClick}
+                            title="Cambiar Congregación (5 toques)"
+                        >
+                            <div className="relative shrink-0">
+                                <img 
+                                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover shadow-sm border-2 border-indigo-500/20 dark:border-indigo-500/40" 
+                                    src="https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?auto=format&fit=crop&q=80&w=150&h=150" 
+                                    alt="Logo"
+                                />
+                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></div>
                             </div>
-                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                                <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-none hidden xs:inline">
-                                    Congregación Activa
-                                </span>
-                                {accessLabel && (
-                                    <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 border border-blue-200/80 dark:border-blue-800/60 px-2 py-0.5 rounded-full leading-tight">
-                                        <Shield className="w-2.5 h-2.5" />
-                                        <span>{accessLabel}</span>
+                            <div className="min-w-0">
+                                <div className="font-black text-slate-900 dark:text-white tracking-tight leading-tight text-sm sm:text-base truncate max-w-[130px] xs:max-w-[200px] sm:max-w-none">
+                                    {congregationName || 'Sistema VMT'}
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                    <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-none hidden xs:inline">
+                                        Congregación Activa
                                     </span>
-                                )}
+                                    {accessLabel && (
+                                        <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 border border-blue-200/80 dark:border-blue-800/60 px-2 py-0.5 rounded-full leading-tight">
+                                            <Shield className="w-2.5 h-2.5" />
+                                            <span>{accessLabel}</span>
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Desktop Segmented Navigation Bar */}
+                        <nav className="hidden lg:flex items-center justify-center flex-1 px-3">
+                            <ul className="list-none m-0 p-1 flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-inner">
+                                {renderNavItems(false)}
+                            </ul>
+                        </nav>
+
+                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                            {onOpenInstallModal && !isInstalled && (
+                                <button
+                                    onClick={onOpenInstallModal}
+                                    className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-95 text-white text-xs font-bold shadow-sm transition-all cursor-pointer shrink-0"
+                                    title="Descargar / Instalar aplicación para Android y iPhone"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>Instalar App</span>
+                                </button>
+                            )}
+                            <DBStatusIndicator />
+                            {actionButtons}
+
+                            {/* Mobile Menu Button */}
+                            <div className="lg:hidden shrink-0">
+                                <button
+                                    type="button"
+                                    className="action-button app-nav__mobile-toggle p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all text-slate-700 dark:text-slate-200 flex items-center justify-center"
+                                    aria-label="Toggle menu"
+                                    aria-expanded={isMobileMenuOpen}
+                                    onClick={() => setMobileMenuOpen(!isMobileMenuOpen)}
+                                >
+                                    {isMobileMenuOpen ? (
+                                        <X className="w-5 h-5 text-red-500 dark:text-red-400" />
+                                    ) : (
+                                        <Menu className="w-5 h-5 text-slate-700 dark:text-slate-200" />
+                                    )}
+                                </button>
                             </div>
                         </div>
                     </div>
                     
-                    {/* Desktop Segmented Navigation Bar */}
-                    <nav className="hidden lg:flex items-center justify-center flex-1 px-3">
-                        <ul className="list-none m-0 p-1 flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-inner">
-                            {renderNavItems(false)}
-                        </ul>
-                    </nav>
-
-                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                        <DBStatusIndicator />
-                        {actionButtons}
-
-                        {/* Mobile Menu Button */}
-                        <div className="lg:hidden shrink-0">
-                            <button
-                                type="button"
-                                className="action-button app-nav__mobile-toggle hover:scale-105 active:scale-95 transition-transform"
-                                aria-label="Toggle menu"
-                                onClick={() => setMobileMenuOpen(!isMobileMenuOpen)}
-                                style={{
-                                    backgroundColor: 'var(--card-bg-color)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: '10px'
-                                }}
-                            >
-                                <i 
-                                    className={`fas fa-${isMobileMenuOpen ? 'times' : 'bars'}`} 
-                                    style={{ color: 'var(--text-color)', fontSize: '15px' }}
-                                ></i>
-                            </button>
-                        </div>
-                    </div>
+                    {/* Mobile Nav Drawer */}
+                    {isMobileMenuOpen && (
+                        <nav 
+                            className="lg:hidden absolute top-full left-0 right-0 max-h-[calc(100dvh-62px)] overflow-y-auto bg-white/98 dark:bg-slate-900/98 backdrop-blur-2xl border-b border-slate-200 dark:border-slate-800 shadow-2xl z-[9999] px-4 py-3 pb-12 animate-fade-in-down"
+                            style={{
+                                WebkitOverflowScrolling: 'touch',
+                                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1)'
+                            }}
+                        >
+                            {onOpenInstallModal && !isInstalled && (
+                                <div className="pb-3 mb-2 border-b border-slate-200 dark:border-slate-800">
+                                    <button
+                                        onClick={() => {
+                                            setMobileMenuOpen(false);
+                                            onOpenInstallModal();
+                                        }}
+                                        className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-98"
+                                    >
+                                        <Smartphone className="w-4 h-4" />
+                                        <span>📱 Descargar / Instalar App (Android & iPhone)</span>
+                                    </button>
+                                </div>
+                            )}
+                            <ul className="list-none m-0 p-0 space-y-1 py-1">
+                                {renderNavItems(true)}
+                            </ul>
+                        </nav>
+                    )}
                 </div>
-                
-                {/* Mobile Nav Drawer */}
-                {isMobileMenuOpen && (
-                    <nav className="lg:hidden mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-fade-in-down">
-                        <ul className="list-none m-0 p-0 space-y-1 py-2">
-                            {renderNavItems(true)}
-                        </ul>
-                    </nav>
-                )}
-            </div>
-        </header>
+            </header>
+
+            {/* Mobile Backdrop Overlay - closes menu and prevents bleed-through */}
+            {isMobileMenuOpen && (
+                <div 
+                    className="fixed inset-0 top-[52px] sm:top-[60px] bg-slate-950/60 backdrop-blur-sm z-[9990] lg:hidden animate-fade-in"
+                    onClick={() => {
+                        setMobileMenuOpen(false);
+                        setOpenDropdown(null);
+                    }}
+                    aria-hidden="true"
+                />
+            )}
+        </>
     );
 };
 

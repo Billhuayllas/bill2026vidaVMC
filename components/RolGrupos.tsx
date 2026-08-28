@@ -1236,7 +1236,7 @@ const RolGrupos: React.FC<RolGruposProps> = ({ isReadOnly = false }) => {
             
             {isPrintPreview ? (
                  /* BEAUTIFUL PRINT PREVIEW DIRECT-BAR */
-                 <div className="print-hidden bg-slate-950 border-b border-slate-800 py-3 px-4 sm:px-6 sticky top-0 z-[100] shadow-lg flex flex-col gap-3 text-slate-100 max-w-full">
+                 <div className="print-hidden bg-slate-950 border-b border-slate-800 py-3 px-4 sm:px-6 sticky top-[52px] sm:top-[58px] z-20 shadow-lg flex flex-col gap-3 text-slate-100 max-w-full">
                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 w-full">
                          <div className="flex items-center gap-3">
                              <button 
@@ -2199,7 +2199,7 @@ const RolGrupos: React.FC<RolGruposProps> = ({ isReadOnly = false }) => {
 
             {/* History Modal */}
             {showHistoryModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col font-sans">
                         <div className="flex justify-between items-center p-4 border-b border-slate-200 bg-slate-50 rounded-t-xl">
                             <div>

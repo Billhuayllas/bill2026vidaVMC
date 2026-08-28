@@ -23,7 +23,8 @@ import {
     User,
     Calendar,
     Sparkles,
-    KeyRound
+    KeyRound,
+    AlertTriangle
 } from 'lucide-react';
 import { GroupMember, MinistryReport, VisitData, PublisherRole, Publisher } from './types';
 import { getAvatarColor, cleanNotes } from './utils';
@@ -125,6 +126,7 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
         }
         
         onUpdateRole(member.id, finalRol as any);
+        return finalRol;
     };
 
     const handlePioneerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -137,6 +139,9 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
             setInicioPrecursorMes(ym);
         }
         handleRoleUpdate(val, appointment, isMisionero, customConcepts);
+        if (val.includes('Precursor') && didPreach) {
+            setDidPreach(true);
+        }
     };
 
     const handleAppointmentToggle = (type: 'Anciano' | 'Siervo ministerial') => {
@@ -257,6 +262,103 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
 
     const totalHours = reportEntry ? (Number(reportEntry.horas || 0) + Number(reportEntry.horas_especiales || 0)) : 0;
 
+    const isPrecursor = pioneerRole.includes('Precursor');
+    const isPrecursorAuxiliar = pioneerRole === 'Precursor Auxiliar';
+    const isPioneerWithoutHours = isPrecursor && didPreach && totalHours < 1;
+
+    const [showPioneerValidationModal, setShowPioneerValidationModal] = useState(false);
+    const [showSinHorasConfirmModal, setShowSinHorasConfirmModal] = useState(false);
+
+    const handleChangeToPublicador = () => {
+        setPioneerRole('Publicador');
+        const finalRol = handleRoleUpdate('Publicador', appointment, isMisionero, customConcepts);
+        onReportChange(pName, 'horas', '');
+        onReportChange(pName, 'horas_especiales', '');
+        onReportChange(pName, 'participo', true);
+        setDidPreach(true);
+
+        const rawNotes = reportEntry?.notas || '';
+        let updatedNotes = rawNotes.replace(/\{\{rol:.*?\}\}/g, '').trim();
+        updatedNotes = `${updatedNotes} {{rol:${finalRol}}}`.trim();
+        onReportChange(pName, 'notas', updatedNotes);
+    };
+
+    const handleDowngradeToPublicadorAndSave = () => {
+        setShowPioneerValidationModal(false);
+        setPioneerRole('Publicador');
+        const finalRol = handleRoleUpdate('Publicador', appointment, isMisionero, customConcepts);
+        onReportChange(pName, 'horas', '');
+        onReportChange(pName, 'horas_especiales', '');
+        onReportChange(pName, 'participo', true);
+        setDidPreach(true);
+
+        const rawNotes = reportEntry?.notas || '';
+        let updatedNotes = rawNotes.replace(/\{\{rol:.*?\}\}/g, '').trim();
+        updatedNotes = `${updatedNotes} {{rol:${finalRol}}}`.trim();
+        onReportChange(pName, 'notas', updatedNotes);
+
+        if (onUpdatePublisherDetails) {
+            onUpdatePublisherDetails(
+                pName, 
+                getCombinedDireccion(), 
+                contactoEmergencia, 
+                telefonoPersonal, 
+                publisherDetails?.genero || '', 
+                publisherDetails?.fecha_nacimiento || '', 
+                publisherDetails?.fecha_bautismo || '', 
+                publisherDetails?.esperanza || '', 
+                inicioPrecursorMes, 
+                publisherDetails?.fecha_nombramiento || '', 
+                nombreCompleto
+            );
+        }
+        onSave(pName); 
+        onClose(); 
+    };
+
+    const handleSinHorasClick = () => {
+        if (isReportReadOnly) return;
+        if (isPrecursor) {
+            setShowSinHorasConfirmModal(true);
+        } else {
+            onReportChange(pName, 'horas', '');
+            onReportChange(pName, 'horas_especiales', '');
+            onReportChange(pName, 'participo', true);
+            setDidPreach(true);
+        }
+    };
+
+    const handleAttemptSave = () => {
+        if (isReadOnly) {
+            onClose();
+            return;
+        }
+
+        // Validation: Precursor Auxiliar (and other precursors) must have at least 1 hour if participated
+        if (isPrecursor && didPreach && totalHours < 1) {
+            setShowPioneerValidationModal(true);
+            return;
+        }
+
+        if (onUpdatePublisherDetails) {
+            onUpdatePublisherDetails(
+                pName, 
+                getCombinedDireccion(), 
+                contactoEmergencia, 
+                telefonoPersonal, 
+                publisherDetails?.genero || '', 
+                publisherDetails?.fecha_nacimiento || '', 
+                publisherDetails?.fecha_bautismo || '', 
+                publisherDetails?.esperanza || '', 
+                inicioPrecursorMes, 
+                publisherDetails?.fecha_nombramiento || '', 
+                nombreCompleto
+            );
+        }
+        onSave(pName); 
+        onClose(); 
+    };
+
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 99999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
             <div style={{ backgroundColor: 'var(--card-bg-color)', width: '100%', maxWidth: '500px', borderTopLeftRadius: '20px', borderTopRightRadius: '20px', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '95vh', maxHeight: '95vh', animation: 'slideUp 0.3s ease-out', color: 'var(--text-color)', position: 'relative' }} onClick={e => e.stopPropagation()}>
@@ -297,12 +399,18 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                         </button>
                                         
                                         <button onClick={() => {
-                                            setWizardStep('studies');
+                                            if (isPrecursor) {
+                                                setShowSinHorasConfirmModal(true);
+                                            } else {
+                                                setWizardStep('studies');
+                                            }
                                         }} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)', textAlign: 'left', cursor: 'pointer' }}>
                                             <i className="fas fa-check-circle" style={{ fontSize: '1.4rem', color: '#10b981' }}></i>
                                             <div>
                                                 <div style={{ fontWeight: 'bold', color: 'var(--text-color)' }}>Participó (Sin horas)</div>
-                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-color-light)' }}>Informa participación y cursos bíblicos</div>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-color-light)' }}>
+                                                    {isPrecursor ? 'Solo publicadores (requiere cambiar estado)' : 'Informa participación y cursos bíblicos'}
+                                                </div>
                                             </div>
                                         </button>
                                         
@@ -376,6 +484,10 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                         </div>
                                         
                                         <button onClick={() => {
+                                            if (isPrecursor) {
+                                                setShowPioneerValidationModal(true);
+                                                return;
+                                            }
                                             onReportChange(pName, 'horas', '');
                                             if (wizardSpecialHours) onReportChange(pName, 'horas_especiales', '');
                                             onReportChange(pName, 'estudios', wizardStudies);
@@ -425,6 +537,11 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                         </div>
                                         
                                         <button onClick={() => {
+                                            const totalWizardHours = Number(wizardHours || 0) + (showSpecialHours ? Number(wizardSpecialHours || 0) : 0);
+                                            if (isPrecursor && totalWizardHours < 1) {
+                                                setShowPioneerValidationModal(true);
+                                                return;
+                                            }
                                             onReportChange(pName, 'horas', wizardHours);
                                             if (showSpecialHours) onReportChange(pName, 'horas_especiales', wizardSpecialHours);
                                             onReportChange(pName, 'estudios', wizardStudies);
@@ -441,6 +558,238 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal de Validación para Precursor Auxiliar sin horas */}
+                {showPioneerValidationModal && (
+                    <div style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(15, 23, 42, 0.7)',
+                        backdropFilter: 'blur(4px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 50,
+                        padding: '20px',
+                        animation: 'fadeIn 0.2s ease-out'
+                    }}>
+                        <div style={{
+                            backgroundColor: 'var(--card-bg-color)',
+                            borderRadius: '20px',
+                            border: '1px solid var(--border-color)',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                            width: '100%',
+                            maxWidth: '430px',
+                            padding: '22px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '15px'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                                <div style={{
+                                    width: '46px', height: '46px', borderRadius: '14px',
+                                    backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    flexShrink: 0
+                                }}>
+                                    <AlertTriangle size={26} color="#d97706" />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-color)', letterSpacing: '-0.02em' }}>
+                                        {pioneerRole} requiere horas
+                                    </h3>
+                                    <p style={{ margin: '5px 0 0', fontSize: '0.86rem', color: 'var(--text-color-light)', lineHeight: '1.4' }}>
+                                        <strong>{nombreCompleto || pName}</strong> está registrado como <strong>{pioneerRole}</strong> pero no tiene horas ingresadas (0 hrs).
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div style={{
+                                backgroundColor: '#fffbeb',
+                                border: '1px solid #fde68a',
+                                borderRadius: '12px',
+                                padding: '12px 14px',
+                                fontSize: '0.82rem',
+                                color: '#92400e',
+                                lineHeight: '1.45'
+                            }}>
+                                <div style={{ fontWeight: '700', marginBottom: '3px' }}>Regla de informe:</div>
+                                Un precursor auxiliar debe si o si tener más de 0 horas (al menos 1 hr). Si no puso horas y solo participó, no se puede guardar sin antes cambiar su estado a <strong>Publicador</strong> (los publicadores sí pueden poner si predicaron sin horas).
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px' }}>
+                                <button
+                                    type="button"
+                                    onClick={handleDowngradeToPublicadorAndSave}
+                                    style={{
+                                        width: '100%',
+                                        padding: '13px 16px',
+                                        borderRadius: '12px',
+                                        border: 'none',
+                                        backgroundColor: '#10b981',
+                                        color: '#ffffff',
+                                        fontWeight: '700',
+                                        fontSize: '0.92rem',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.25)'
+                                    }}
+                                >
+                                    <User size={18} />
+                                    Cambiar estado a Publicador y Guardar
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowPioneerValidationModal(false);
+                                        if (Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0) {
+                                            onReportChange(pName, 'horas', 1);
+                                        }
+                                        if (wizardStep === null) {
+                                            // Focus on normal modal hours
+                                        } else {
+                                            setWizardStep('hours');
+                                        }
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        borderRadius: '12px',
+                                        border: '1.5px solid #3b82f6',
+                                        backgroundColor: '#eff6ff',
+                                        color: '#1d4ed8',
+                                        fontWeight: '700',
+                                        fontSize: '0.9rem',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px'
+                                    }}
+                                >
+                                    <Clock size={17} />
+                                    Ingresar horas (Mínimo 1 hr)
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPioneerValidationModal(false)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '9px 16px',
+                                        borderRadius: '10px',
+                                        border: 'none',
+                                        backgroundColor: 'transparent',
+                                        color: 'var(--text-color-light)',
+                                        fontWeight: '600',
+                                        fontSize: '0.85rem',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancelar y seguir editando
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Confirm Modal when selecting Sin Horas as Pioneer */}
+                {showSinHorasConfirmModal && (
+                    <div style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(15, 23, 42, 0.7)',
+                        backdropFilter: 'blur(4px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 50,
+                        padding: '20px',
+                        animation: 'fadeIn 0.2s ease-out'
+                    }}>
+                        <div style={{
+                            backgroundColor: 'var(--card-bg-color)',
+                            borderRadius: '20px',
+                            border: '1px solid var(--border-color)',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                            width: '100%',
+                            maxWidth: '430px',
+                            padding: '22px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '15px'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                                <div style={{
+                                    width: '46px', height: '46px', borderRadius: '14px',
+                                    backgroundColor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    flexShrink: 0
+                                }}>
+                                    <User size={24} color="#2563eb" />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-color)' }}>
+                                        Cambiar estado a Publicador
+                                    </h3>
+                                    <p style={{ margin: '5px 0 0', fontSize: '0.85rem', color: 'var(--text-color-light)', lineHeight: '1.4' }}>
+                                        Los precursores deben registrar horas. Para informar solo participación <strong>sin horas</strong>, el estado de <strong>{nombreCompleto || pName}</strong> debe ser <strong>Publicador</strong>.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--text-color)', lineHeight: '1.45' }}>
+                                ¿Desea cambiar el estado a <strong>Publicador</strong> y registrar que participó sin horas?
+                            </p>
+
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowSinHorasConfirmModal(false)}
+                                    style={{
+                                        flex: 1,
+                                        padding: '12px',
+                                        borderRadius: '10px',
+                                        border: '1px solid var(--border-color)',
+                                        backgroundColor: 'var(--bg-color)',
+                                        color: 'var(--text-color)',
+                                        fontWeight: '600',
+                                        fontSize: '0.88rem',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowSinHorasConfirmModal(false);
+                                        handleChangeToPublicador();
+                                        if (wizardStep === 'options') {
+                                            setWizardStep('studies');
+                                        }
+                                    }}
+                                    style={{
+                                        flex: 1,
+                                        padding: '12px',
+                                        borderRadius: '10px',
+                                        border: 'none',
+                                        backgroundColor: '#10b981',
+                                        color: 'white',
+                                        fontWeight: '700',
+                                        fontSize: '0.88rem',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.25)'
+                                    }}
+                                >
+                                    Sí, cambiar a Publicador
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -690,20 +1039,29 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                         </button>
 
                                         <button 
-                                            onClick={() => { if(!isReportReadOnly) { onReportChange(pName, 'horas', ''); onReportChange(pName, 'horas_especiales', ''); onReportChange(pName, 'participo', true); setDidPreach(true); } }}
+                                            onClick={handleSinHorasClick}
                                             style={{ 
                                                 display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', 
-                                                backgroundColor: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#dcfce7' : 'var(--bg-color)', 
-                                                border: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '1.5px solid #10b981' : '1px solid var(--border-color)', 
+                                                backgroundColor: (!isPrecursor && didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0) ? '#dcfce7' : 'var(--bg-color)', 
+                                                border: (!isPrecursor && didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0) ? '1.5px solid #10b981' : (isPrecursor && didPreach && totalHours < 1) ? '1.5px dashed #f59e0b' : '1px solid var(--border-color)', 
                                                 borderRadius: '12px', cursor: isReportReadOnly ? 'default' : 'pointer', textAlign: 'left',
                                                 transition: 'all 0.15s',
-                                                color: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#047857' : 'var(--text-color)'
+                                                color: (!isPrecursor && didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0) ? '#047857' : 'var(--text-color)'
                                             }}
                                         >
-                                            <CheckCircle2 size={20} color={didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#047857' : '#94a3b8'} strokeWidth={2.2} />
-                                            <div>
-                                                <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>Participó (Sin horas)</div>
-                                                <div style={{ fontSize: '0.73rem', color: didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0 ? '#047857' : 'var(--text-color-light)', opacity: 0.85 }}>Informa participación y cursos bíblicos</div>
+                                            <CheckCircle2 size={20} color={(!isPrecursor && didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0) ? '#047857' : (isPrecursor && didPreach && totalHours < 1) ? '#d97706' : '#94a3b8'} strokeWidth={2.2} />
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>Participó (Sin horas)</div>
+                                                    {isPrecursor && (
+                                                        <span style={{ fontSize: '0.68rem', backgroundColor: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '999px', fontWeight: '700' }}>
+                                                            Solo Publicadores
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div style={{ fontSize: '0.73rem', color: (!isPrecursor && didPreach && Number(reportEntry?.horas || 0) === 0 && Number(reportEntry?.horas_especiales || 0) === 0) ? '#047857' : 'var(--text-color-light)', opacity: 0.85 }}>
+                                                    {isPrecursor ? 'Precursor requiere horas. Clic para cambiar a Publicador.' : 'Informa participación y cursos bíblicos'}
+                                                </div>
                                             </div>
                                         </button>
 
@@ -726,6 +1084,72 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                                         </button>
                                     </div>
                                 </div>
+
+                                {isPioneerWithoutHours && (
+                                    <div style={{
+                                        backgroundColor: '#fffbeb',
+                                        border: '1.5px solid #f59e0b',
+                                        borderRadius: '12px',
+                                        padding: '12px 14px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px',
+                                        animation: 'fadeIn 0.2s ease-in'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#b45309', fontWeight: '700', fontSize: '0.86rem' }}>
+                                            <AlertTriangle size={18} color="#d97706" style={{ flexShrink: 0 }} />
+                                            <span>{pioneerRole} debe tener al menos 1 hora</span>
+                                        </div>
+                                        <p style={{ margin: 0, fontSize: '0.78rem', color: '#92400e', lineHeight: '1.45' }}>
+                                            Está registrado como <strong>{pioneerRole}</strong> y no ha puesto horas. No puede agregarse sin antes cambiar su estado a <strong>Publicador</strong> (los publicadores sí pueden poner si predicaron sin horas).
+                                        </p>
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                            <button
+                                                type="button"
+                                                onClick={handleChangeToPublicador}
+                                                style={{
+                                                    backgroundColor: '#10b981',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '8px',
+                                                    padding: '8px 12px',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: '700',
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                                                }}
+                                            >
+                                                <User size={14} />
+                                                Cambiar estado a Publicador
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    onReportChange(pName, 'horas', 1);
+                                                }}
+                                                style={{
+                                                    backgroundColor: '#eff6ff',
+                                                    color: '#1d4ed8',
+                                                    border: '1px solid #bfdbfe',
+                                                    borderRadius: '8px',
+                                                    padding: '8px 12px',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: '700',
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                }}
+                                            >
+                                                <Clock size={14} />
+                                                Asignar horas (mínimo 1 hr)
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                                 
                                 {didPreach && (
                                     <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
@@ -1063,25 +1487,29 @@ const EditMemberModal: React.FC<EditMemberModalProps> = ({ member, publisherDeta
                     {isReadOnly ? (
                         <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: '#64748b', color: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '1rem', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.1)' }}>Cerrar</button>
                     ) : (
-                        <button onClick={() => { 
-                            if (onUpdatePublisherDetails) {
-                                onUpdatePublisherDetails(
-                                    pName, 
-                                    getCombinedDireccion(), 
-                                    contactoEmergencia, 
-                                    telefonoPersonal, 
-                                    publisherDetails?.genero || '', 
-                                    publisherDetails?.fecha_nacimiento || '', 
-                                    publisherDetails?.fecha_bautismo || '', 
-                                    publisherDetails?.esperanza || '', 
-                                    inicioPrecursorMes, 
-                                    publisherDetails?.fecha_nombramiento || '', 
-                                    nombreCompleto
-                                );
-                            }
-                            onSave(pName); 
-                            onClose(); 
-                        }} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', backgroundColor: '#2563eb', color: 'white', fontWeight: '600', cursor: 'pointer', fontSize: '1rem', boxShadow:'0 4px 6px -1px rgba(37, 99, 235, 0.2)' }}>Guardar</button>
+                        <button 
+                            onClick={handleAttemptSave} 
+                            style={{ 
+                                flex: 1, 
+                                padding: '14px', 
+                                borderRadius: '12px', 
+                                border: 'none', 
+                                backgroundColor: isPioneerWithoutHours ? '#d97706' : '#2563eb', 
+                                color: 'white', 
+                                fontWeight: '700', 
+                                cursor: 'pointer', 
+                                fontSize: '1rem', 
+                                boxShadow: isPioneerWithoutHours ? '0 4px 6px -1px rgba(217, 119, 6, 0.3)' : '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {isPioneerWithoutHours && <AlertTriangle size={18} />}
+                            <span>{isPioneerWithoutHours ? 'Guardar (Requiere horas o Publicador)' : 'Guardar'}</span>
+                        </button>
                     )}
                 </div>
             </div>
