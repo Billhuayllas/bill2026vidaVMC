@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useCongregation } from '../lib/CongregationContext';
 import { useDBStatus } from '../lib/supabase';
+import { VMCLogo } from './VMCLogo';
 import { 
     Home, 
     BookOpen, 
@@ -422,16 +423,12 @@ const Header: React.FC<HeaderProps> = ({ navItems, activeTab, setActiveTab, them
                             title="Cambiar Congregación (5 toques)"
                         >
                             <div className="relative shrink-0">
-                                <img 
-                                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover shadow-sm border-2 border-indigo-500/20 dark:border-indigo-500/40" 
-                                    src="https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?auto=format&fit=crop&q=80&w=150&h=150" 
-                                    alt="Logo"
-                                />
+                                <VMCLogo size={38} rounded="xl" className="sm:!w-[42px] sm:!h-[42px]" />
                                 <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></div>
                             </div>
                             <div className="min-w-0">
                                 <div className="font-black text-slate-900 dark:text-white tracking-tight leading-tight text-sm sm:text-base truncate max-w-[130px] xs:max-w-[200px] sm:max-w-none">
-                                    {congregationName || 'Sistema VMT'}
+                                    {congregationName || 'Sistema VMC'}
                                 </div>
                                 <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                                     <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-none hidden xs:inline">

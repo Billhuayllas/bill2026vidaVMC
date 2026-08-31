@@ -21,6 +21,7 @@ import { supabase } from './lib/supabase';
 import { CongregationProvider, useCongregation } from './lib/CongregationContext';
 import { usePWAInstall } from './lib/usePWAInstall';
 import InstallAppModal from './components/InstallAppModal';
+import { VMCLogo } from './components/VMCLogo';
 
 // --- CONGREGATION SELECTOR COMPONENT ---
 interface CongregationSelectorProps {
@@ -265,16 +266,13 @@ const CongregationSelector: React.FC<CongregationSelectorProps> = ({ onTokenSucc
     );
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', padding: '20px' }}>
-            <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', maxWidth: '450px', width: '100%' }}>
-                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                    <img 
-                        src="/icon-192.png" 
-                        alt="Logo" 
-                        style={{ width: '80px', height: '80px', borderRadius: '20px', objectFit: 'cover', margin: '0 auto 20px', display: 'block', boxShadow: '0 8px 16px -2px rgba(0, 0, 0, 0.1)' }} 
-                        onError={(e) => { 
-                            (e.currentTarget as HTMLImageElement).src = "https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?auto=format&fit=crop&q=80&w=150&h=150"; 
-                        }} 
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#09090b', padding: '20px' }}>
+            <div style={{ backgroundColor: '#ffffff', padding: '40px 32px', borderRadius: '28px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)', maxWidth: '440px', width: '100%', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <div style={{ textAlign: 'center', marginBottom: '24px', display: 'flex', justifyContent: 'center' }}>
+                    <VMCLogo 
+                        size={88} 
+                        rounded="2xl" 
+                        className="shadow-xl" 
                     />
                 </div>
                 {view === 'login' && renderLogin()}
@@ -457,6 +455,19 @@ const AppContent: React.FC = () => {
                             hasEditAccess = true;
                         }
                     }
+                }
+            });
+        }
+
+        // Subtabs synchronization: If user has 'Grupo de Congregación', make sure all sub-tabs are available
+        if (names.includes('Grupo de Congregación')) {
+            const grupoPerm = permissions.find(p => p.name === 'Grupo de Congregación')?.access || 'view';
+            const subTabs = ["↳ Mi Grupo", "↳ Resumen General", "↳ Lista de Publicadores", "Rol de Grupos"];
+            
+            subTabs.forEach(sub => {
+                if (!names.includes(sub)) {
+                    names.push(sub);
+                    permissions.push({ name: sub, access: grupoPerm });
                 }
             });
         }

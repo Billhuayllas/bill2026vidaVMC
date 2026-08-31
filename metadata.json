@@ -1,6 +1,6 @@
 {
   "name": "VMT Program Manager",
-  "description": "Panel de control y gestión integral para el programa Vida y Ministerio Teocrático con formato dashboard profesional, sincronización en tiempo real y vista interactiva.",
+  "description": "Panel de control y gestión integral para el programa Vida y Ministerio Cristianos (VMC) con formato dashboard profesional, sincronización en tiempo real y vista interactiva.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

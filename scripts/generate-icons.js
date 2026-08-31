@@ -1,4 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+import fs from 'fs';
+import sharp from 'sharp';
+
+const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <!-- Diagonal Slice Clips -->
     <clipPath id="vmcTopSlice">
@@ -84,3 +87,25 @@
     />
   </g>
 </svg>
+`;
+
+async function generate() {
+  fs.writeFileSync('public/icon.svg', svgContent);
+  console.log('Saved public/icon.svg');
+
+  const svgBuffer = Buffer.from(svgContent);
+
+  await sharp(svgBuffer).resize(512, 512).png().toFile('public/icon-512.png');
+  console.log('Generated public/icon-512.png');
+
+  await sharp(svgBuffer).resize(192, 192).png().toFile('public/icon-192.png');
+  console.log('Generated public/icon-192.png');
+
+  await sharp(svgBuffer).resize(180, 180).png().toFile('public/apple-touch-icon.png');
+  console.log('Generated public/apple-touch-icon.png');
+
+  await sharp(svgBuffer).resize(64, 64).png().toFile('public/favicon.png');
+  console.log('Generated public/favicon.png');
+}
+
+generate().catch(console.error);

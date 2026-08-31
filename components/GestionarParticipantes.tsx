@@ -93,6 +93,7 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
     const [groups, setGroups] = useState<{ id: number; nombre: string }[]>([]);
     const [isEnrolledVMT, setIsEnrolledVMT] = useState(false);
     const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchGroups = async () => {
@@ -187,6 +188,7 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
             setNewName('');
             setIsEnrolledVMT(false);
             setSelectedGroupId('');
+            setIsAddModalOpen(false);
             await loadManagerData();
         }
     };
@@ -623,109 +625,126 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
     };
 
     return (
-        <div id="managers-container" className="managers-container">
+        <div id="managers-container" className="w-full max-w-7xl mx-auto px-1 sm:px-4 py-2 sm:py-4">
             <style>{`
                 .gp-card-grid {
                     display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-                    gap: 16px;
-                    margin-top: 20px;
+                    grid-template-columns: 1fr;
+                    gap: 10px;
+                    margin-top: 16px;
+                    width: 100%;
+                }
+                @media (min-width: 640px) {
+                    .gp-card-grid {
+                        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                        gap: 14px;
+                    }
                 }
                 .gp-card {
                     background-color: var(--card-bg-color);
                     border: 1px solid var(--border-color);
                     border-radius: 12px;
-                    padding: 16px;
+                    padding: 12px 14px;
                     display: flex;
                     align-items: center;
-                    gap: 15px;
+                    gap: 12px;
                     position: relative;
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+                    min-width: 0;
+                    width: 100%;
+                    box-sizing: border-box;
                 }
                 .gp-card:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
                     border-color: var(--primary-color);
                 }
                 .gp-card.selected {
                     background-color: var(--info-bg);
                     border-color: var(--primary-color);
-                    box-shadow: 0 0 0 1px var(--primary-color);
+                    box-shadow: 0 0 0 1.5px var(--primary-color);
                 }
                 .gp-avatar {
-                    width: 45px;
-                    height: 45px;
-                    border-radius: 50%;
+                    width: 38px;
+                    height: 38px;
+                    min-width: 38px;
+                    border-radius: 10px;
                     color: white;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     font-weight: 700;
-                    font-size: 1.2rem;
+                    font-size: 1.05rem;
                     flex-shrink: 0;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
                 }
                 .gp-info {
                     flex: 1;
-                    min-width: 0; /* Enable text truncation */
+                    min-width: 0;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    padding-right: 4px;
                 }
                 .gp-name {
                     font-weight: 600;
                     color: var(--text-color);
-                    font-size: 1rem;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
+                    font-size: 0.95rem;
+                    line-height: 1.35;
+                    word-break: break-word;
+                    overflow-wrap: break-word;
                     margin-bottom: 2px;
                 }
                 .gp-meta {
-                    font-size: 0.8rem;
+                    font-size: 0.78rem;
                     color: var(--text-color-light);
                     display: flex;
                     align-items: center;
-                    gap: 6px;
+                    gap: 5px;
+                    flex-wrap: wrap;
                 }
                 .gp-checkbox {
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
                     width: 18px;
                     height: 18px;
                     cursor: pointer;
                     accent-color: var(--primary-color);
                     border-radius: 4px;
+                    flex-shrink: 0;
+                    margin: 0;
                 }
                 .gp-actions {
                     display: flex;
-                    gap: 5px;
+                    align-items: center;
+                    gap: 4px;
                     margin-left: auto;
-                    opacity: 0;
-                    transition: opacity 0.2s;
-                }
-                .gp-card:hover .gp-actions {
-                    opacity: 1;
+                    flex-shrink: 0;
                 }
                 .gp-btn-icon {
-                    width: 30px;
-                    height: 30px;
-                    border-radius: 6px;
-                    border: none;
-                    background-color: transparent;
+                    width: 32px;
+                    height: 32px;
+                    min-width: 32px;
+                    min-height: 32px;
+                    border-radius: 8px;
+                    border: 1px solid var(--border-color);
+                    background-color: var(--bg-color);
                     color: var(--text-color-light);
                     cursor: pointer;
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    font-size: 0.85rem;
                     transition: all 0.2s;
                 }
                 .gp-btn-icon:hover {
-                    background-color: var(--light-gray);
+                    background-color: var(--input-bg);
                     color: var(--primary-color);
+                    border-color: var(--primary-color);
                 }
                 .gp-btn-icon.delete:hover {
                     background-color: #fef2f2;
                     color: var(--destructive-color);
+                    border-color: #fca5a5;
                 }
                 .hover-bg-gray:hover {
                     background-color: #f1f5f9 !important;
@@ -739,19 +758,18 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
                 }
                 .gp-edit-input {
                     width: 100%;
-                    padding: 8px;
+                    padding: 8px 12px;
                     border: 1px solid var(--primary-color);
-                    border-radius: 6px;
-                    font-size: 0.95rem;
+                    border-radius: 8px;
+                    font-size: 0.9rem;
+                    background-color: var(--bg-color);
+                    color: var(--text-color);
                     box-sizing: border-box;
                 }
                 .gp-edit-actions {
                     display: flex;
                     gap: 8px;
                     justify-content: flex-end;
-                }
-                @media (max-width: 768px) {
-                    .gp-actions { opacity: 1; }
                 }
             `}</style>
 
@@ -767,15 +785,15 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
                 ))}
             </div>
 
-            <div className="manager-panel" style={{ backgroundColor: 'var(--card-bg-color)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', marginBottom: '24px' }}>
-                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'16px', marginBottom:'1.5rem', borderBottom:'1px solid var(--border-color)', paddingBottom:'16px'}}>
+            <div className="manager-panel" style={{ backgroundColor: 'var(--card-bg-color)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', marginBottom: '24px' }}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'12px', marginBottom:'1.25rem', borderBottom:'1px solid var(--border-color)', paddingBottom:'14px'}}>
                     <div>
-                        <h2 className="page-title" style={{margin:0, borderBottom:'none', paddingBottom:0, fontSize:'1.4rem', fontWeight:'700', color:'var(--text-color)', display:'flex', alignItems:'center', gap:'8px'}}>
+                        <h2 className="page-title" style={{margin:0, borderBottom:'none', paddingBottom:0, fontSize:'1.25rem', fontWeight:'700', color:'var(--text-color)', display:'flex', alignItems:'center', gap:'8px'}}>
                             <i className="fas fa-users-cog text-indigo-500"></i>
                             Gestionar {activeManager.title}
                             {isReadOnly && <span style={{fontSize:'0.5em', verticalAlign:'middle', backgroundColor:'#ef4444', color:'white', padding:'2px 6px', borderRadius:'4px', marginLeft:'8px'}}>Solo Lectura</span>}
                         </h2>
-                        <p style={{ margin: '4px 0 0 0', color: 'var(--text-color-light)', fontSize: '0.85rem' }}>
+                        <p style={{ margin: '4px 0 0 0', color: 'var(--text-color-light)', fontSize: '0.82rem' }}>
                             Agrega, edita e importa participantes e integrantes de forma ágil.
                         </p>
                     </div>
@@ -806,251 +824,46 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
                     </div>
                 )}
                 
-                {!isReadOnly && (
-                    <div style={{ marginBottom: '24px' }}>
-                        <div style={{
-                            backgroundColor: 'var(--light-gray)', 
-                            border: '1px solid var(--border-color)', 
-                            borderRadius: '14px', 
-                            padding: '20px', 
-                            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.01)'
-                        }}>
-                            <h3 style={{ margin: '0 0 16px 0', fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-color)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <i className="fas fa-plus-circle text-indigo-500"></i>
-                                Nuevo(a) {activeManager.placeholder}:
-                            </h3>
-
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: activeManager.type === 'publicadores' ? 'repeat(auto-fit, minmax(260px, 1fr))' : '1fr',
-                                gap: '16px',
-                                alignItems: 'end'
-                            }}>
-                                {/* Quick Add Placeholder */}
-                                <div style={{ marginBottom: '10px', gridColumn: '1 / -1' }}>
-                                    <button 
-                                        onClick={() => setNewName('Sin participantes')}
-                                        style={{
-                                            fontSize: '0.75rem',
-                                            padding: '4px 10px',
-                                            borderRadius: '6px',
-                                            backgroundColor: '#f8fafc',
-                                            border: '1px solid #e2e8f0',
-                                            color: '#64748b',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        <i className="fas fa-magic mr-1"></i> Usar "Sin participantes"
-                                    </button>
-                                </div>
-
-                                {/* Name Input Field */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-color-light)' }}>
-                                        Nombre Completo:
-                                    </label>
-                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                        <i className="fas fa-user" style={{ position: 'absolute', left: '12px', color: 'var(--text-color-light)', fontSize: '0.9rem' }}></i>
-                                        <input 
-                                            type="text" 
-                                            value={newName}
-                                            onChange={(e) => setNewName(e.target.value)}
-                                            placeholder={`Nombre del nuevo ${activeManager.placeholder}`}
-                                            style={{
-                                                width: '100%',
-                                                padding: '10px 10px 10px 34px',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: '8px',
-                                                fontSize: '0.9rem',
-                                                backgroundColor: 'var(--bg-color)',
-                                                color: 'var(--text-color)',
-                                                outline: 'none',
-                                                transition: 'all 0.2s',
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-
-                                {activeManager.type === 'publicadores' && (
-                                    <>
-                                        {/* Gender Choice Segmented Control */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-color-light)' }}>
-                                                Género:
-                                            </label>
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setNewGenero('Hombre')}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '10px',
-                                                        borderRadius: '8px',
-                                                        border: newGenero === 'Hombre' ? '2.5px solid #3b82f6' : '1px solid var(--border-color)',
-                                                        backgroundColor: newGenero === 'Hombre' ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-color)',
-                                                        color: newGenero === 'Hombre' ? '#2563eb' : 'var(--text-color)',
-                                                        fontSize: '0.85rem',
-                                                        fontWeight: '600',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '6px',
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                >
-                                                    <i className="fas fa-mars" style={{ color: '#3b82f6' }}></i>
-                                                    Hombre
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setNewGenero('Mujer')}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '10px',
-                                                        borderRadius: '8px',
-                                                        border: newGenero === 'Mujer' ? '2.5px solid #ec4899' : '1px solid var(--border-color)',
-                                                        backgroundColor: newGenero === 'Mujer' ? 'rgba(236, 72, 153, 0.1)' : 'var(--bg-color)',
-                                                        color: newGenero === 'Mujer' ? '#db2777' : 'var(--text-color)',
-                                                        fontSize: '0.85rem',
-                                                        fontWeight: '600',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '6px',
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                >
-                                                    <i className="fas fa-venus" style={{ color: '#ec4899' }}></i>
-                                                    Mujer
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* VMT School Enrollment YES / NO Question Option */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-color-light)', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-                                                <span>¿Aprobado(a) para Escuela VMT?</span>
-                                            </label>
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsEnrolledVMT(true)}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '10px',
-                                                        borderRadius: '8px',
-                                                        border: isEnrolledVMT ? '2.5px solid #06b6d4' : '1px solid var(--border-color)',
-                                                        backgroundColor: isEnrolledVMT ? 'rgba(6, 182, 212, 0.1)' : 'var(--bg-color)',
-                                                        color: isEnrolledVMT ? '#0891b2' : 'var(--text-color)',
-                                                        fontSize: '0.85rem',
-                                                        fontWeight: '700',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '6px',
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                >
-                                                    <i className="fas fa-check-circle" style={{ color: isEnrolledVMT ? '#06b6d4' : 'var(--text-color-light)' }}></i>
-                                                    SÍ (Aprobado)
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsEnrolledVMT(false)}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '10px',
-                                                        borderRadius: '8px',
-                                                        border: !isEnrolledVMT ? '2.5px solid #64748b' : '1px solid var(--border-color)',
-                                                        backgroundColor: !isEnrolledVMT ? 'rgba(100, 116, 139, 0.1)' : 'var(--bg-color)',
-                                                        color: !isEnrolledVMT ? '#475569' : 'var(--text-color)',
-                                                        fontSize: '0.85rem',
-                                                        fontWeight: '700',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '6px',
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                >
-                                                    <i className="fas fa-times-circle" style={{ color: !isEnrolledVMT ? '#64748b' : 'var(--text-color-light)' }}></i>
-                                                    NO (No aprobado)
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Assign Predication Group Selector */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-color-light)' }}>
-                                                Asignar a Grupo de Predicación:
-                                            </label>
-                                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                                <i className="fas fa-users-class" style={{ position: 'absolute', left: '12px', color: 'var(--text-color-light)', fontSize: '0.9rem' }}></i>
-                                                <select 
-                                                    value={selectedGroupId} 
-                                                    onChange={e => setSelectedGroupId(e.target.value)} 
-                                                    style={{
-                                                        width: '100%',
-                                                        padding: '10px 10px 10px 34px',
-                                                        border: '1px solid var(--border-color)',
-                                                        borderRadius: '8px',
-                                                        backgroundColor: 'var(--bg-color)',
-                                                        color: 'var(--text-color)',
-                                                        fontSize: '0.85rem',
-                                                        fontWeight: '600',
-                                                        outline: 'none',
-                                                        transition: 'all 0.2s',
-                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                                                        cursor: 'pointer',
-                                                        height: '41px'
-                                                    }}
-                                                >
-                                                    <option value="">-- Sin grupo (Sin asignar) --</option>
-                                                    {groups.map(g => (
-                                                        <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-
-                                {/* Submit Add Button */}
-                                <div style={{ display: 'flex', width: '100%' }}>
-                                    <button 
-                                        onClick={handleAdd} 
-                                        className="button" 
-                                        style={{
-                                            width: '100%',
-                                            padding: '11px 18px',
-                                            borderRadius: '8px',
-                                            backgroundColor: 'var(--primary-color)',
-                                            color: 'white',
-                                            fontWeight: '600',
-                                            fontSize: '0.9rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '8px',
-                                            transition: 'all 0.2s',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            height: '41px'
-                                        }}
-                                    >
-                                        <i className="fas fa-plus"></i> Registrar {activeManager.placeholder.charAt(0).toUpperCase() + activeManager.placeholder.slice(1)}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                {/* Search Bar with Integrated Action Button */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 mb-3.5">
+                    <div className="relative flex-1">
+                        <i className="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                        <input 
+                            type="text" 
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder={`Buscar en ${activeManager.title}...`}
+                            className="w-full pl-9 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition shadow-2xs h-[42px]"
+                        />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchTerm('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs cursor-pointer"
+                            >
+                                <i className="fas fa-times"></i>
+                            </button>
+                        )}
                     </div>
-                )}
-                
+
+                    {!isReadOnly && (
+                        <button 
+                            type="button"
+                            onClick={() => {
+                                setNewName('');
+                                setNewGenero('Hombre');
+                                setIsEnrolledVMT(false);
+                                setSelectedGroupId('');
+                                setIsAddModalOpen(true);
+                            }} 
+                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white font-bold text-sm rounded-xl shadow-sm hover:shadow-md transition flex items-center justify-center gap-2 cursor-pointer sm:flex-shrink-0 h-[42px]"
+                        >
+                            <i className="fas fa-user-plus text-sm"></i>
+                            <span>Registrar {activeManager.placeholder.charAt(0).toUpperCase() + activeManager.placeholder.slice(1)}</span>
+                        </button>
+                    )}
+                </div>
+
                 {activeManager.type === 'publicadores' && selectedParticipants.size > 0 && !isReadOnly && (
                     <div className="bulk-actions-panel" style={{animation:'fadeIn 0.3s'}}>
                         <span>{selectedParticipants.size} seleccionado(s)</span>
@@ -1061,30 +874,17 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
                         </div>
                     </div>
                 )}
-                
-                <div className="search-box" style={{maxWidth:'100%', marginBottom:'10px'}}>
-                     <i className="fas fa-search search-icon" style={{display:'none'}}></i>
-                     <input 
-                        type="text" 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder={`Buscar en ${activeManager.title}...`}
-                        className="search-input"
-                        style={{paddingLeft: '12.5px'}}
-                    />
-                </div>
 
                 {activeManager.type === 'publicadores' && !loading && participants.length > 0 && !isReadOnly && (
-                    <div style={{display:'flex', alignItems:'center', gap:'10px', marginTop:'10px', padding:'0 5px'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:'10px', marginTop:'6px', marginBottom:'4px', padding:'0 4px'}}>
                         <input
                             type="checkbox"
                             className="gp-checkbox"
-                            style={{position:'static'}}
                             checked={filteredParticipants.length > 0 && selectedParticipants.size === filteredParticipants.length}
                             onChange={handleToggleSelectAll}
                             id="select-all-participants"
                         />
-                        <label htmlFor="select-all-participants" style={{fontSize:'0.9rem', fontWeight:'600', color:'var(--text-color-light)', cursor:'pointer'}}>Seleccionar Todos</label>
+                        <label htmlFor="select-all-participants" style={{fontSize:'0.85rem', fontWeight:'600', color:'var(--text-color-light)', cursor:'pointer'}}>Seleccionar Todos</label>
                     </div>
                 )}
 
@@ -1106,7 +906,7 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
                                         <div className="gp-edit-form">
                                             <input 
                                                 ref={editInputRef}
-                                                type="text"
+                                                type="text" 
                                                 value={editingName}
                                                 onChange={e => setEditingName(e.target.value)}
                                                 onKeyDown={e => {
@@ -1150,12 +950,12 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
                                                 {activeManager.type === 'publicadores' && p.genero && (
                                                     <div className="gp-meta">
                                                         <i className={`fas ${p.genero === 'Hombre' ? 'fa-male' : 'fa-female'}`} style={{color: p.genero === 'Hombre' ? '#3b82f6' : '#ec4899'}}></i>
-                                                        {p.genero}
+                                                        <span>{p.genero}</span>
                                                     </div>
                                                 )}
                                                 {isHidden(p.nombre) && (
                                                     <div className="gp-meta" style={{color: '#ef4444', fontWeight: 'bold', fontSize: '0.75rem', marginTop: '2px'}}>
-                                                        <i className="fas fa-eye-slash"></i> {getHiddenText(p.nombre)}
+                                                        <i className="fas fa-eye-slash"></i> <span>{getHiddenText(p.nombre)}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -1194,6 +994,188 @@ const GestionarParticipantes: React.FC<GestionarParticipantesProps> = ({ isReadO
                     </div>
                 )}
             </div>
+
+            {/* Modal Emergente para Agregar / Registrar Participante */}
+            {isAddModalOpen && (
+                <div 
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-[10008] animate-in fade-in duration-200"
+                    onClick={() => setIsAddModalOpen(false)}
+                >
+                    <div 
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transition-all transform scale-100"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm font-bold shadow-2xs">
+                                    <i className="fas fa-user-plus"></i>
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 m-0">
+                                        Registrar {activeManager.placeholder.charAt(0).toUpperCase() + activeManager.placeholder.slice(1)}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 m-0">
+                                        Sección: {activeManager.title}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsAddModalOpen(false)}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer"
+                            >
+                                <i className="fas fa-times text-sm"></i>
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-5 space-y-4">
+                            {/* Fast Action helper */}
+                            <div className="flex justify-end">
+                                <button 
+                                    type="button"
+                                    onClick={() => setNewName('Sin participantes')}
+                                    className="text-xs text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <i className="fas fa-magic text-indigo-500"></i>
+                                    <span>Usar "Sin participantes"</span>
+                                </button>
+                            </div>
+
+                            {/* Field: Nombre */}
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                    Nombre Completo:
+                                </label>
+                                <div className="relative flex items-center">
+                                    <i className="fas fa-user absolute left-3.5 text-slate-400 text-sm"></i>
+                                    <input 
+                                        type="text" 
+                                        autoFocus
+                                        value={newName}
+                                        onChange={(e) => setNewName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleAdd();
+                                        }}
+                                        placeholder={`Nombre del nuevo(a) ${activeManager.placeholder}`}
+                                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50/50 dark:bg-slate-950/60 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition shadow-2xs"
+                                    />
+                                </div>
+                            </div>
+
+                            {activeManager.type === 'publicadores' && (
+                                <>
+                                    {/* Field: Género */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                            Género:
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-2.5 h-[42px]">
+                                            <button
+                                                type="button"
+                                                onClick={() => setNewGenero('Hombre')}
+                                                className={`h-full rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border transition cursor-pointer ${
+                                                    newGenero === 'Hombre' 
+                                                        ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-600 text-blue-700 dark:text-blue-400 shadow-xs' 
+                                                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <i className="fas fa-mars text-blue-500"></i>
+                                                <span>Hombre</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setNewGenero('Mujer')}
+                                                className={`h-full rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border transition cursor-pointer ${
+                                                    newGenero === 'Mujer' 
+                                                        ? 'bg-pink-50 dark:bg-pink-950/50 border-pink-500 text-pink-700 dark:text-pink-400 shadow-xs' 
+                                                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <i className="fas fa-venus text-pink-500"></i>
+                                                <span>Mujer</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Field: Aprobado Escuela VMT */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                            ¿Aprobado(a) para Escuela VMT?
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-2.5 h-[42px]">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsEnrolledVMT(true)}
+                                                className={`h-full rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                                                    isEnrolledVMT 
+                                                        ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-600 text-emerald-700 dark:text-emerald-400 shadow-xs' 
+                                                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <i className={`fas fa-check-circle ${isEnrolledVMT ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}></i>
+                                                <span>Sí (Aprobado)</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsEnrolledVMT(false)}
+                                                className={`h-full rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                                                    !isEnrolledVMT 
+                                                        ? 'bg-slate-100 dark:bg-slate-800 border-slate-500 text-slate-800 dark:text-slate-200 shadow-xs' 
+                                                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <i className={`fas fa-times-circle ${!isEnrolledVMT ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400'}`}></i>
+                                                <span>No aprobado</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Field: Grupo de Predicación */}
+                                    <div className="flex flex-col gap-1.5">
+                                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                            Asignar a Grupo de Predicación:
+                                        </label>
+                                        <div className="relative flex items-center">
+                                            <i className="fas fa-users absolute left-3.5 text-slate-400 text-sm"></i>
+                                            <select 
+                                                value={selectedGroupId} 
+                                                onChange={e => setSelectedGroupId(e.target.value)} 
+                                                className="w-full pl-9 pr-8 py-2.5 h-[42px] bg-slate-50/50 dark:bg-slate-950/60 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition cursor-pointer shadow-2xs"
+                                            >
+                                                <option value="">-- Sin grupo (Sin asignar) --</option>
+                                                {groups.map(g => (
+                                                    <option key={g.id} value={g.id.toString()}>{g.nombre}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-5 py-3.5 bg-slate-50/80 dark:bg-slate-800/40 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-end gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setIsAddModalOpen(false)}
+                                className="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleAdd}
+                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer"
+                            >
+                                <i className="fas fa-plus"></i>
+                                <span>Registrar {activeManager.placeholder.charAt(0).toUpperCase() + activeManager.placeholder.slice(1)}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {confirmDelete && (
                 <div style={{

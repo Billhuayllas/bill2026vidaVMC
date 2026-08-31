@@ -35,26 +35,227 @@ export const convertToYm = (val: string | undefined): string => {
 };
 
 export const MONTHS_S21 = [
-    { key: '09', name: 'septiembre' },
-    { key: '10', name: 'octubre' },
-    { key: '11', name: 'noviembre' },
-    { key: '12', name: 'diciembre' },
-    { key: '01', name: 'enero' },
-    { key: '02', name: 'febrero' },
-    { key: '03', name: 'marzo' },
-    { key: '04', name: 'abril' },
-    { key: '05', name: 'mayo' },
-    { key: '06', name: 'junio' },
-    { key: '07', name: 'julio' },
-    { key: '08', name: 'agosto' }
+    { key: '09', name: 'Septiembre' },
+    { key: '10', name: 'Octubre' },
+    { key: '11', name: 'Noviembre' },
+    { key: '12', name: 'Diciembre' },
+    { key: '01', name: 'Enero' },
+    { key: '02', name: 'Febrero' },
+    { key: '03', name: 'Marzo' },
+    { key: '04', name: 'Abril' },
+    { key: '05', name: 'Mayo' },
+    { key: '06', name: 'Junio' },
+    { key: '07', name: 'Julio' },
+    { key: '08', name: 'Agosto' }
 ];
+
+export interface S21Config {
+    rowHeight: number;       // Altura de fila de mes (px)
+    titleFontSize: number;   // Tamaño letra título (pt)
+    titleMarginTop?: number; // Margen superior título (px)
+    titleMarginBottom?: number; // Margen inferior título (px)
+    headerFontSize: number;  // Tamaño letra datos nombre/fechas (pt)
+    headerGridMarginBottom?: number; // Margen inferior cabecera datos (px)
+    privFontSize: number;    // Tamaño letra privilegios/cargos (pt)
+    tableFontSize: number;   // Tamaño letra tabla/meses (pt)
+    noteFontSize: number;    // Tamaño letra notas (pt)
+    tableCheckSize: number;  // Tamaño casilla de verificación (px)
+    headerCheckSize?: number;// Tamaño casilla cabecera (px)
+    thHeadHeight: number;    // Altura cabecera de la tabla (px)
+    footerHeight: number;    // Altura fila Total (px)
+    cardPaddingY: number;    // Padding superior e inferior por página (px)
+    cardPaddingX: number;    // Padding lateral por página (px)
+    cardMaxHeight: number;   // Altura máxima de cada mitad (px)
+    tableScale: number;      // Escala o ancho relativo (%)
+}
+
+export const DEFAULT_S21_CONFIG_2IN1: S21Config = {
+    rowHeight: 14,
+    titleFontSize: 10.5,
+    titleMarginTop: 0,
+    titleMarginBottom: 5,
+    headerFontSize: 8,
+    headerGridMarginBottom: 5,
+    privFontSize: 7.5,
+    tableFontSize: 7.2,
+    noteFontSize: 6.8,
+    tableCheckSize: 8,
+    headerCheckSize: 9,
+    thHeadHeight: 26,
+    footerHeight: 15,
+    cardPaddingY: 16,
+    cardPaddingX: 24,
+    cardMaxHeight: 535,
+    tableScale: 100,
+};
+
+export const DEFAULT_S21_CONFIG_1IN1: S21Config = {
+    rowHeight: 24,
+    titleFontSize: 14,
+    titleMarginTop: 0,
+    titleMarginBottom: 12,
+    headerFontSize: 10,
+    headerGridMarginBottom: 10,
+    privFontSize: 9.5,
+    tableFontSize: 9.5,
+    noteFontSize: 9,
+    tableCheckSize: 11,
+    headerCheckSize: 12,
+    thHeadHeight: 40,
+    footerHeight: 24,
+    cardPaddingY: 28,
+    cardPaddingX: 32,
+    cardMaxHeight: 1060,
+    tableScale: 100,
+};
+
+const STORAGE_KEY_S21_CONFIG = 'vmt_s21_custom_config_v3';
+
+export const getSavedS21Config = (isTwoInOne = true): S21Config => {
+    const defaults = isTwoInOne ? DEFAULT_S21_CONFIG_2IN1 : DEFAULT_S21_CONFIG_1IN1;
+    if (typeof window === 'undefined') return defaults;
+    try {
+        const raw = localStorage.getItem(`${STORAGE_KEY_S21_CONFIG}_${isTwoInOne ? '2' : '1'}`);
+        if (!raw) return defaults;
+        const parsed = JSON.parse(raw);
+        const merged = { ...defaults, ...parsed };
+        if (isTwoInOne) {
+            if (merged.rowHeight > 18) merged.rowHeight = 14;
+            if (merged.cardPaddingY > 24) merged.cardPaddingY = 14;
+            if (merged.thHeadHeight > 36) merged.thHeadHeight = 28;
+        }
+        return merged;
+    } catch {
+        return defaults;
+    }
+};
+
+export const saveS21Config = (config: S21Config, isTwoInOne = true): void => {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(`${STORAGE_KEY_S21_CONFIG}_${isTwoInOne ? '2' : '1'}`, JSON.stringify(config));
+    } catch (e) {
+        console.error("Error saving S21 config:", e);
+    }
+};
+
+export const resetS21Config = (isTwoInOne = true): S21Config => {
+    if (typeof window !== 'undefined') {
+        try {
+            localStorage.removeItem(`${STORAGE_KEY_S21_CONFIG}_${isTwoInOne ? '2' : '1'}`);
+        } catch {}
+    }
+    return isTwoInOne ? DEFAULT_S21_CONFIG_2IN1 : DEFAULT_S21_CONFIG_1IN1;
+};
+
+export const generateS21DynamicStyleBlock = (config: S21Config, isTwoInOne = true): string => {
+    const titleMarginTop = config.titleMarginTop ?? 0;
+    const titleMarginBottom = config.titleMarginBottom ?? (isTwoInOne ? 5 : 12);
+    const headerGridMarginBottom = config.headerGridMarginBottom ?? (isTwoInOne ? 5 : 10);
+    const headerCheckSize = config.headerCheckSize || (isTwoInOne ? 9 : 12);
+    const headerCheckFont = Math.max(6, Math.round(headerCheckSize * 0.85 * 10) / 10);
+    const tableCheckFont = Math.max(5, Math.round(config.tableCheckSize * 0.85 * 10) / 10);
+    const thSubFontSize = Math.max(4, Math.round(config.tableFontSize * 0.72 * 10) / 10);
+    const scaleFactor = config.tableScale ? config.tableScale / 100 : 1;
+
+    return `
+        .s21-card-page {
+            padding: ${config.cardPaddingY}px ${config.cardPaddingX}px !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .s21-card-scale-wrapper {
+            transform: scale(${scaleFactor}) !important;
+            transform-origin: top center !important;
+        }
+        .s21-title {
+            font-size: ${config.titleFontSize}pt !important;
+            margin-top: ${titleMarginTop}px !important;
+            margin-bottom: ${titleMarginBottom}px !important;
+            font-weight: 700 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            letter-spacing: 0.01em !important;
+            line-height: 1.1 !important;
+        }
+        .s21-header-grid {
+            margin-bottom: ${headerGridMarginBottom}px !important;
+            font-size: ${config.headerFontSize}pt !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            line-height: 1.25 !important;
+        }
+        .s21-header-text, .s21-header-grid span, .s21-header-grid label span:not(.s21-header-checkbox) {
+            font-size: ${config.headerFontSize}pt !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+        .s21-priv-row, .s21-priv-row label span:not(.s21-header-checkbox) {
+            font-size: ${config.privFontSize}pt !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+        .s21-header-checkbox {
+            width: ${headerCheckSize}px !important;
+            height: ${headerCheckSize}px !important;
+            font-size: ${headerCheckFont}px !important;
+        }
+        .s21-table {
+            font-size: ${config.tableFontSize}pt !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+        .s21-th-row {
+            height: ${config.thHeadHeight}px !important;
+            max-height: ${config.thHeadHeight}px !important;
+        }
+        .s21-th-cell {
+            font-size: ${config.tableFontSize}pt !important;
+            font-weight: 700 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+        .s21-th-sub {
+            font-size: ${thSubFontSize}pt !important;
+            font-weight: normal !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+        .s21-month-row {
+            height: ${config.rowHeight}px !important;
+            max-height: ${config.rowHeight}px !important;
+        }
+        .s21-td-cell {
+            height: ${config.rowHeight}px !important;
+            max-height: ${config.rowHeight}px !important;
+            font-size: ${config.tableFontSize}pt !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+        .s21-td-note {
+            font-size: ${config.noteFontSize}pt !important;
+            height: ${config.rowHeight}px !important;
+            max-height: ${config.rowHeight}px !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+        .s21-table-checkbox {
+            width: ${config.tableCheckSize}px !important;
+            height: ${config.tableCheckSize}px !important;
+            font-size: ${tableCheckFont}px !important;
+        }
+        .s21-footer-row {
+            height: ${config.footerHeight}px !important;
+            max-height: ${config.footerHeight}px !important;
+        }
+        .s21-footer-cell {
+            height: ${config.footerHeight}px !important;
+            max-height: ${config.footerHeight}px !important;
+            font-size: ${config.tableFontSize}pt !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        }
+    `;
+};
 
 export const generateSingleCardHtml = (
     pub: any, 
     allReports: any[], 
     globalMembers: any[] = [], 
     isTwoInOne = true, 
-    serviceYear = new Date().getMonth() + 1 >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear()
+    serviceYear = new Date().getMonth() + 1 >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear(),
+    customConfig?: Partial<S21Config>
 ): string => {
     const memberRow = globalMembers.find(m => m.publicador_nombre && m.publicador_nombre.trim().toLowerCase() === (pub.nombre || pub.publicador_nombre || '').trim().toLowerCase());
     const role = (memberRow?.rol || pub.rol || 'Publicador').toLowerCase();
@@ -70,7 +271,7 @@ export const generateSingleCardHtml = (
     const isMale = pub.genero === 'Hombre' || (!pub.genero && (isElder || isMS));
     const isFemale = pub.genero === 'Mujer';
     const isAnointed = pub.esperanza === 'Ungido';
-    const isOtherSheep = !isAnointed;
+    const isOtherSheep = !isAnointed && Boolean(pub.esperanza || pub.nombre || pub.publicador_nombre);
 
     const birthDate = sanitizeAndFormatDate(pub.fecha_nacimiento);
     const baptismDate = sanitizeAndFormatDate(pub.fecha_bautismo);
@@ -78,17 +279,34 @@ export const generateSingleCardHtml = (
     const pubName = pub.nombre || pub.publicador_nombre || '';
 
     // Filter reports for this publisher
-    const pubReports = allReports.filter(r => 
+    const pubReports = pubName ? allReports.filter(r => 
         r.publicador_nombre && r.publicador_nombre.trim().toLowerCase() === pubName.trim().toLowerCase()
-    );
+    ) : [];
 
     let totalAnnualHours = 0;
 
-    const rowHeight = isTwoInOne ? '14.5px' : '24px';
-    const tdFontSize = isTwoInOne ? '6.2pt' : '9pt';
-    const noteFontSize = isTwoInOne ? '5.8pt' : '8.5pt';
-    const checkSize = isTwoInOne ? '8.5px' : '13px';
-    const checkFont = isTwoInOne ? '6.5px' : '11px';
+    // Configuración activa (guardada o personalizada)
+    const baseConfig = getSavedS21Config(isTwoInOne);
+    const activeConfig: S21Config = { ...baseConfig, ...(customConfig || {}) };
+
+    const rowHeight = `${activeConfig.rowHeight}px`;
+    const tdFontSize = `${activeConfig.tableFontSize}pt`;
+    const noteFontSize = `${activeConfig.noteFontSize}pt`;
+    const tableCheckSize = `${activeConfig.tableCheckSize}px`;
+    const tableCheckFont = `${Math.max(5, Math.round(activeConfig.tableCheckSize * 0.85 * 10) / 10)}px`;
+
+    const headerCheckSize = `${activeConfig.headerCheckSize || (isTwoInOne ? 9 : 12)}px`;
+    const headerCheckFont = `${Math.max(6, (activeConfig.headerCheckSize || (isTwoInOne ? 9 : 12)) * 0.85)}px`;
+
+    const titleSize = `${activeConfig.titleFontSize}pt`;
+    const titleMargin = `${activeConfig.titleMarginTop ?? 0}px 0 ${activeConfig.titleMarginBottom ?? (isTwoInOne ? 5 : 12)}px 0`;
+    const headerGridMargin = `0 0 ${activeConfig.headerGridMarginBottom ?? (isTwoInOne ? 5 : 10)}px 0`;
+    const headerFontSize = `${activeConfig.headerFontSize}pt`;
+    const privFontSize = `${activeConfig.privFontSize}pt`;
+    const thHeadHeight = `${activeConfig.thHeadHeight}px`;
+    const thFontSize = `${activeConfig.tableFontSize}pt`;
+    const thSubFontSize = `${Math.max(4, Math.round(activeConfig.tableFontSize * 0.72 * 10) / 10)}pt`;
+    const footerHeight = `${activeConfig.footerHeight}px`;
 
     const monthRows = MONTHS_S21.map(m => {
         const targetYm = m.key === '09' || m.key === '10' || m.key === '11' || m.key === '12'
@@ -140,141 +358,130 @@ export const generateSingleCardHtml = (
         }
 
         return `
-            <tr style="height: ${rowHeight};">
-                <td style="border: 1px solid #000; padding: 0px 3px; font-size: ${tdFontSize}; font-weight: normal; text-transform: capitalize; color: #000; line-height: 1; height: ${rowHeight};">
+            <tr class="s21-month-row" style="height: ${rowHeight}; max-height: ${rowHeight};">
+                <td class="s21-td-cell" style="border: 1px solid #000000; padding: 0px 4px; font-size: ${tdFontSize}; font-weight: normal; color: #000000; line-height: 1; height: ${rowHeight}; max-height: ${rowHeight}; vertical-align: middle;">
                     ${m.name}
                 </td>
-                <td style="border: 1px solid #000; padding: 0px; text-align: center; height: ${rowHeight};">
-                    <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">
+                <td class="s21-td-cell" style="border: 1px solid #000000; padding: 0px; text-align: center; height: ${rowHeight}; max-height: ${rowHeight}; vertical-align: middle; line-height: 0;">
+                    <span class="s21-table-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${tableCheckSize}; height: ${tableCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${tableCheckFont}; font-weight: bold; line-height: 1;">
                         ${participo ? '✓' : ''}
                     </span>
                 </td>
-                <td style="border: 1px solid #000; padding: 0px; text-align: center; font-size: ${tdFontSize}; font-weight: normal; color: #000; line-height: 1; height: ${rowHeight};">
+                <td class="s21-td-cell" style="border: 1px solid #000000; padding: 0px; text-align: center; font-size: ${tdFontSize}; font-weight: normal; color: #000000; line-height: 1; height: ${rowHeight}; max-height: ${rowHeight}; vertical-align: middle;">
                     ${studies}
                 </td>
-                <td style="border: 1px solid #000; padding: 0px; text-align: center; height: ${rowHeight};">
-                    <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">
+                <td class="s21-td-cell" style="border: 1px solid #000000; padding: 0px; text-align: center; height: ${rowHeight}; max-height: ${rowHeight}; vertical-align: middle; line-height: 0;">
+                    <span class="s21-table-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${tableCheckSize}; height: ${tableCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${tableCheckFont}; font-weight: bold; line-height: 1;">
                         ${hasAuxPrecursor ? '✓' : ''}
                     </span>
                 </td>
-                <td style="border: 1px solid #000; padding: 0px; text-align: center; font-size: ${tdFontSize}; font-weight: normal; color: #000; line-height: 1; height: ${rowHeight};">
+                <td class="s21-td-cell" style="border: 1px solid #000000; padding: 0px; text-align: center; font-size: ${tdFontSize}; font-weight: normal; color: #000000; line-height: 1; height: ${rowHeight}; max-height: ${rowHeight}; vertical-align: middle;">
                     ${hoursStr}
                 </td>
-                <td style="border: 1px solid #000; padding: 0px 3px; font-size: ${noteFontSize}; color: #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1; height: ${rowHeight};">
+                <td class="s21-td-cell s21-td-note" style="border: 1px solid #000000; padding: 0px 4px; font-size: ${noteFontSize}; color: #000000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1; height: ${rowHeight}; max-height: ${rowHeight}; vertical-align: middle;">
                     ${cleanNote}
                 </td>
             </tr>
         `;
     }).join('');
 
-    const titleSize = isTwoInOne ? '8.2pt' : '13.5pt';
-    const titleMargin = isTwoInOne ? '0 0 2px 0' : '0 0 16px 0';
-    const headerGridMargin = isTwoInOne ? '0 0 2px 0' : '0 0 12px 0';
-    const headerFontSize = isTwoInOne ? '6.8pt' : '9.5pt';
-    const nameFontSize = isTwoInOne ? '7.8pt' : '10pt';
-    const privFontSize = isTwoInOne ? '6.3pt' : '8.8pt';
-    const thHeadHeight = isTwoInOne ? '19px' : '42px';
-    const thFontSize = isTwoInOne ? '5.8pt' : '8pt';
-    const thSubFontSize = isTwoInOne ? '5pt' : '6.5pt';
-    const footerHeight = isTwoInOne ? '15px' : '27px';
-
     return `
-        <div style="width: 100%; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; line-height: 1.15;">
+        <div class="s21-card-inner" style="width: 100%; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #000000; background: #ffffff; line-height: 1.15; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
             <!-- Title -->
-            <h1 style="text-align: center; font-size: ${titleSize}; font-weight: bold; margin: ${titleMargin}; text-transform: uppercase; letter-spacing: 0.01em; color: #000; font-family: Arial, Helvetica, sans-serif;">
+            <h1 class="s21-title" style="text-align: center; font-size: ${titleSize}; font-weight: 700; margin: ${titleMargin}; text-transform: uppercase; letter-spacing: 0.01em; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.1; white-space: nowrap; width: 100%;">
                 REGISTRO DE PUBLICADOR DE LA CONGREGACIÓN
             </h1>
 
             <!-- Header Details Grid -->
-            <div style="margin: ${headerGridMargin}; font-size: ${headerFontSize}; color: #000; line-height: 1.15;">
+            <div class="s21-header-grid" style="margin: ${headerGridMargin}; font-size: ${headerFontSize}; color: #000000; line-height: 1.25; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                 <!-- Row 1: Nombre -->
-                <div style="display: flex; align-items: flex-end; margin-bottom: ${isTwoInOne ? '1.5px' : '4px'};">
-                    <span style="font-weight: bold; min-width: ${isTwoInOne ? '50px' : '65px'};">Nombre:</span>
-                    <span style="flex: 1; border-bottom: 1px solid #000; padding-left: 4px; padding-bottom: 0.5px; font-weight: bold; font-size: ${nameFontSize}; color: #000;">${pubName}</span>
+                <div class="s21-header-row" style="display: flex; align-items: flex-end; margin-bottom: ${isTwoInOne ? '3px' : '6px'};">
+                    <span class="s21-header-text" style="font-weight: 700; min-width: ${isTwoInOne ? '56px' : '65px'}; font-size: ${headerFontSize};">Nombre:</span>
+                    <span class="s21-header-text" style="flex: 1; border-bottom: 1px solid #000000; padding-left: 4px; padding-bottom: 0px; font-weight: normal; font-size: ${headerFontSize}; color: #000000; min-height: 12px;">${pubName}</span>
                 </div>
 
                 <!-- Row 2: Fecha de nacimiento and Género -->
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${isTwoInOne ? '1.5px' : '4px'};">
+                <div class="s21-header-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${isTwoInOne ? '3px' : '6px'};">
                     <div style="display: flex; align-items: flex-end; flex: 1; max-width: 58%;">
-                        <span style="font-weight: bold; min-width: ${isTwoInOne ? '105px' : '130px'}; white-space: nowrap;">Fecha de nacimiento:</span>
-                        <span style="flex: 1; border-bottom: 1px solid #000; padding-left: 4px; padding-bottom: 0.5px; font-weight: normal;">${birthDate}</span>
+                        <span class="s21-header-text" style="font-weight: 700; min-width: ${isTwoInOne ? '122px' : '140px'}; white-space: nowrap; font-size: ${headerFontSize};">Fecha de nacimiento:</span>
+                        <span class="s21-header-text" style="flex: 1; border-bottom: 1px solid #000000; padding-left: 4px; padding-bottom: 0px; font-weight: normal; font-size: ${headerFontSize}; min-height: 12px;">${birthDate}</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: ${isTwoInOne ? '8px' : '14px'}; min-width: ${isTwoInOne ? '135px' : '180px'}; justify-content: flex-start; padding-left: 8px;">
-                        <label style="display: flex; align-items: center; gap: 3px;">
-                            <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isMale ? '✓' : ''}</span>
-                            <span style="font-weight: normal;">Hombre</span>
+                    <div style="display: flex; align-items: center; gap: ${isTwoInOne ? '14px' : '20px'}; min-width: ${isTwoInOne ? '140px' : '175px'}; justify-content: flex-start; padding-left: 8px;">
+                        <label style="display: flex; align-items: center; gap: 3.5px; cursor: default;">
+                            <span class="s21-header-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${headerCheckSize}; height: ${headerCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${headerCheckFont}; font-weight: bold; line-height: 1;">${isMale ? '✓' : ''}</span>
+                            <span class="s21-header-text" style="font-weight: normal; font-size: ${headerFontSize};">Hombre</span>
                         </label>
-                        <label style="display: flex; align-items: center; gap: 3px;">
-                            <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isFemale ? '✓' : ''}</span>
-                            <span style="font-weight: normal;">Mujer</span>
+                        <label style="display: flex; align-items: center; gap: 3.5px; cursor: default;">
+                            <span class="s21-header-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${headerCheckSize}; height: ${headerCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${headerCheckFont}; font-weight: bold; line-height: 1;">${isFemale ? '✓' : ''}</span>
+                            <span class="s21-header-text" style="font-weight: normal; font-size: ${headerFontSize};">Mujer</span>
                         </label>
                     </div>
                 </div>
 
                 <!-- Row 3: Fecha de bautismo and Esperanza -->
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${isTwoInOne ? '2px' : '5px'};">
+                <div class="s21-header-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${isTwoInOne ? '3px' : '6px'};">
                     <div style="display: flex; align-items: flex-end; flex: 1; max-width: 58%;">
-                        <span style="font-weight: bold; min-width: ${isTwoInOne ? '105px' : '130px'}; white-space: nowrap;">Fecha de bautismo:</span>
-                        <span style="flex: 1; border-bottom: 1px solid #000; padding-left: 4px; padding-bottom: 0.5px; font-weight: normal;">${baptismDate}</span>
+                        <span class="s21-header-text" style="font-weight: 700; min-width: ${isTwoInOne ? '122px' : '140px'}; white-space: nowrap; font-size: ${headerFontSize};">Fecha de bautismo:</span>
+                        <span class="s21-header-text" style="flex: 1; border-bottom: 1px solid #000000; padding-left: 4px; padding-bottom: 0px; font-weight: normal; font-size: ${headerFontSize}; min-height: 12px;">${baptismDate}</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: ${isTwoInOne ? '8px' : '14px'}; min-width: ${isTwoInOne ? '135px' : '180px'}; justify-content: flex-start; padding-left: 8px;">
-                        <label style="display: flex; align-items: center; gap: 3px;">
-                            <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isOtherSheep ? '✓' : ''}</span>
-                            <span style="font-weight: normal;">Otras ovejas</span>
+                    <div style="display: flex; align-items: center; gap: ${isTwoInOne ? '14px' : '20px'}; min-width: ${isTwoInOne ? '140px' : '175px'}; justify-content: flex-start; padding-left: 8px;">
+                        <label style="display: flex; align-items: center; gap: 3.5px; cursor: default;">
+                            <span class="s21-header-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${headerCheckSize}; height: ${headerCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${headerCheckFont}; font-weight: bold; line-height: 1;">${isOtherSheep ? '✓' : ''}</span>
+                            <span class="s21-header-text" style="font-weight: normal; font-size: ${headerFontSize};">Otras ovejas</span>
                         </label>
-                        <label style="display: flex; align-items: center; gap: 3px;">
-                            <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isAnointed ? '✓' : ''}</span>
-                            <span style="font-weight: normal;">Ungido</span>
+                        <label style="display: flex; align-items: center; gap: 3.5px; cursor: default;">
+                            <span class="s21-header-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${headerCheckSize}; height: ${headerCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${headerCheckFont}; font-weight: bold; line-height: 1;">${isAnointed ? '✓' : ''}</span>
+                            <span class="s21-header-text" style="font-weight: normal; font-size: ${headerFontSize};">Ungido</span>
                         </label>
                     </div>
                 </div>
 
                 <!-- Row 4: Privileges Row -->
-                <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-top: ${isTwoInOne ? '1px' : '4px'}; margin-bottom: ${isTwoInOne ? '2px' : '5px'}; font-size: ${privFontSize};">
-                    <label style="display: flex; align-items: center; gap: 3px;">
-                        <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isElder ? '✓' : ''}</span>
+                <div class="s21-priv-row" style="display: flex; align-items: flex-start; justify-content: space-between; margin-top: ${isTwoInOne ? '2px' : '5px'}; margin-bottom: ${isTwoInOne ? '2px' : '5px'}; font-size: ${privFontSize}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+                    <label style="display: flex; align-items: center; gap: 3px; cursor: default;">
+                        <span class="s21-header-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${headerCheckSize}; height: ${headerCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${headerCheckFont}; font-weight: bold; line-height: 1;">${isElder ? '✓' : ''}</span>
                         <span style="font-weight: normal;">Anciano</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 3px;">
-                        <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isMS ? '✓' : ''}</span>
-                        <span style="font-weight: normal;">Siervo min.</span>
+                    <label style="display: flex; align-items: center; gap: 3px; cursor: default;">
+                        <span class="s21-header-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${headerCheckSize}; height: ${headerCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${headerCheckFont}; font-weight: bold; line-height: 1;">${isMS ? '✓' : ''}</span>
+                        <span style="font-weight: normal;">Siervo ministerial</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 3px;">
-                        <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isRegularPioneer ? '✓' : ''}</span>
-                        <span style="font-weight: normal;">Prec. regular</span>
+                    <label style="display: flex; align-items: center; gap: 3px; cursor: default;">
+                        <span class="s21-header-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${headerCheckSize}; height: ${headerCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${headerCheckFont}; font-weight: bold; line-height: 1;">${isRegularPioneer ? '✓' : ''}</span>
+                        <span style="font-weight: normal;">Precursor regular</span>
                     </label>
-                    <label style="display: flex; align-items: center; gap: 3px;">
-                        <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1;">${isSpecialPioneer ? '✓' : ''}</span>
-                        <span style="font-weight: normal;">Prec. especial</span>
+                    <label style="display: flex; align-items: center; gap: 3px; cursor: default;">
+                        <span class="s21-header-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${headerCheckSize}; height: ${headerCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${headerCheckFont}; font-weight: bold; line-height: 1;">${isSpecialPioneer ? '✓' : ''}</span>
+                        <span style="font-weight: normal;">Precursor especial</span>
                     </label>
-                    <label style="display: flex; align-items: flex-start; gap: 3px; line-height: 1.1;">
-                        <span style="display: inline-flex; align-items: center; justify-content: center; width: ${checkSize}; height: ${checkSize}; border: 1px solid #000; background-color: #fff; font-size: ${checkFont}; font-weight: bold; line-height: 1; margin-top: 0.5px;">${isMissionary ? '✓' : ''}</span>
-                        <span style="font-weight: normal;">Misionero de campo</span>
+                    <label style="display: flex; align-items: flex-start; gap: 3px; line-height: 1.05; cursor: default;">
+                        <span class="s21-header-checkbox" style="display: inline-flex; align-items: center; justify-content: center; width: ${headerCheckSize}; height: ${headerCheckSize}; border: 1px solid #000000; background-color: #fff; font-size: ${headerCheckFont}; font-weight: bold; line-height: 1; margin-top: 1px;">${isMissionary ? '✓' : ''}</span>
+                        <span style="font-weight: normal;">Misionero que sirve<br />en el campo</span>
                     </label>
                 </div>
             </div>
 
             <!-- Annual Service Table -->
-            <table style="width: 100%; border-collapse: collapse; border: 1.2px solid #000; table-layout: fixed; font-family: Arial, Helvetica, sans-serif; font-size: ${tdFontSize}; line-height: 1;">
+            <table class="s21-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000000; table-layout: fixed; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: ${tdFontSize}; line-height: 1.05;">
                 <thead>
-                    <tr style="background-color: #ffffff; height: ${thHeadHeight};">
-                        <th style="border: 1px solid #000; padding: ${isTwoInOne ? '1px 2px' : '3px 4px'}; width: 16%; text-align: left; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1;">
+                    <tr class="s21-th-row" style="background-color: #ffffff; height: ${thHeadHeight}; max-height: ${thHeadHeight};">
+                        <th class="s21-th-cell" style="border: 1px solid #000000; padding: 2px 3px; width: 14.5%; text-align: left; font-weight: 700; font-size: ${thFontSize}; color: #000000; line-height: 1.05; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                             Año de servicio
                         </th>
-                        <th style="border: 1px solid #000; padding: 1px; width: 17%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1.05;">
-                            Participación<br />en ministerio
+                        <th class="s21-th-cell" style="border: 1px solid #000000; padding: 2px 1px; width: 14%; text-align: center; font-weight: 700; font-size: ${thFontSize}; color: #000000; line-height: 1.05; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+                            Participación<br />en el<br />ministerio
                         </th>
-                        <th style="border: 1px solid #000; padding: 1px; width: 12%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1.05;">
+                        <th class="s21-th-cell" style="border: 1px solid #000000; padding: 2px 1px; width: 9.5%; text-align: center; font-weight: 700; font-size: ${thFontSize}; color: #000000; line-height: 1.05; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                             Cursos<br />bíblicos
                         </th>
-                        <th style="border: 1px solid #000; padding: 1px; width: 13%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1.05;">
+                        <th class="s21-th-cell" style="border: 1px solid #000000; padding: 2px 1px; width: 11.5%; text-align: center; font-weight: 700; font-size: ${thFontSize}; color: #000000; line-height: 1.05; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                             Precursor<br />auxiliar
                         </th>
-                        <th style="border: 1px solid #000; padding: 1px; width: 17%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1.05;">
+                        <th class="s21-th-cell" style="border: 1px solid #000000; padding: 2px 1px; width: 16.5%; text-align: center; font-weight: 700; font-size: ${thFontSize}; color: #000000; line-height: 1.05; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                             Horas<br />
-                            <span style="font-size: ${thSubFontSize}; font-weight: normal; display: block; line-height: 1;">(Si es precursor o misionero)</span>
+                            <span class="s21-th-sub" style="font-size: ${thSubFontSize}; font-weight: normal; display: block; line-height: 1.05; margin-top: 1px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">(Si es precursor o<br />misionero que<br />sirve en el campo)</span>
                         </th>
-                        <th style="border: 1px solid #000; padding: ${isTwoInOne ? '1px 2px' : '2px 4px'}; width: 25%; text-align: center; font-weight: bold; font-size: ${thFontSize}; color: #000; line-height: 1;">
+                        <th class="s21-th-cell" style="border: 1px solid #000000; padding: 2px 3px; width: 34%; text-align: center; font-weight: 700; font-size: ${thFontSize}; color: #000000; line-height: 1.05; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                             Notas
                         </th>
                     </tr>
@@ -283,22 +490,21 @@ export const generateSingleCardHtml = (
                     ${monthRows}
                 </tbody>
                 <tfoot>
-                    <tr style="height: ${footerHeight};">
-                        <td colspan="4" style="border: 1px solid #000; padding: 0px 3px; text-align: right; font-weight: bold; font-size: ${thFontSize}; color: #000; height: ${footerHeight}; line-height: 1;">
+                    <tr class="s21-footer-row" style="height: ${footerHeight}; max-height: ${footerHeight}; background-color: #ffffff;">
+                        <td class="s21-footer-cell" colspan="4" style="border: none; padding: 0px 4px; text-align: right; font-weight: 700; font-size: ${thFontSize}; color: #000000; height: ${footerHeight}; line-height: 1; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                             Total
                         </td>
-                        <td style="border: 1px solid #000; padding: 0px; text-align: center; font-weight: bold; font-size: ${nameFontSize}; color: #000; height: ${footerHeight}; line-height: 1;">
+                        <td class="s21-footer-cell" style="border: 1px solid #000000; padding: 0px; text-align: center; font-weight: 700; font-size: ${tdFontSize}; color: #000000; height: ${footerHeight}; line-height: 1; vertical-align: middle; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                             ${totalAnnualHours > 0 ? totalAnnualHours : ''}
                         </td>
-                        <td style="border: 1px solid #000; padding: 0px; height: ${footerHeight};"></td>
+                        <td class="s21-footer-cell" style="border: 1px solid #000000; padding: 0px; height: ${footerHeight};"></td>
                     </tr>
                 </tfoot>
             </table>
 
             <!-- Form Code Footer -->
-            <div style="margin-top: ${isTwoInOne ? '1.5px' : '4px'}; font-size: ${isTwoInOne ? '5.2pt' : '6.5pt'}; color: #000; font-family: Arial, Helvetica, sans-serif; display: flex; justify-content: space-between; line-height: 1;">
-                <span>S-21-S 11/23</span>
-                <span style="color: #64748b;">Año de Servicio ${serviceYear}</span>
+            <div style="margin-top: ${isTwoInOne ? '3px' : '6px'}; font-size: ${isTwoInOne ? '6.5pt' : '8pt'}; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; display: flex; justify-content: space-between; line-height: 1;">
+                <span>S-21-S&nbsp;&nbsp;11/23</span>
             </div>
         </div>
     `;
@@ -309,45 +515,50 @@ export const generateCardPagesArray = (
     allReports: any[], 
     globalMembers: any[] = [], 
     layout: '2' | '1' = '2', 
-    serviceYear = new Date().getMonth() + 1 >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear()
+    serviceYear = new Date().getMonth() + 1 >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear(),
+    customConfig?: Partial<S21Config>
 ): string[] => {
-    if (layout === '1') {
+    const isTwoInOne = layout === '2';
+    const config = { ...getSavedS21Config(isTwoInOne), ...(customConfig || {}) };
+
+    if (!isTwoInOne) {
         return publishersList.map(pub => {
-            const cardHtml = generateSingleCardHtml(pub, allReports, globalMembers, false, serviceYear);
+            const cardHtml = generateSingleCardHtml(pub, allReports, globalMembers, false, serviceYear, config);
             return `
-                <div class="s21-card-page" style="width: 794px; min-height: 1080px; margin: 0 auto; background: #ffffff; color: #000000; padding: 24px 28px; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; page-break-after: always; break-after: page; page-break-inside: avoid; break-inside: avoid;">
-                    ${cardHtml}
+                <div class="s21-card-page" style="width: 794px; height: 1123px; max-height: 1123px; margin: 0 auto; background: #ffffff; color: #000000; padding: ${config.cardPaddingY}px ${config.cardPaddingX}px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; page-break-after: always; break-after: page; page-break-inside: avoid; break-inside: avoid; overflow: hidden;">
+                    <div class="s21-card-scale-wrapper" style="box-sizing: border-box; width: 100%; transform: scale(${config.tableScale ? config.tableScale / 100 : 1}); transform-origin: top center;">
+                        ${cardHtml}
+                    </div>
                 </div>
             `;
         });
     }
 
-    // 2 in 1: Two cards per page
+    // 2 in 1: Two cards per page (A4 portrait)
     const pages: string[] = [];
     for (let i = 0; i < publishersList.length; i += 2) {
         const pub1 = publishersList[i];
         const pub2 = publishersList[i + 1] || null;
 
-        const card1Html = generateSingleCardHtml(pub1, allReports, globalMembers, true, serviceYear);
-        const card2Html = pub2 ? generateSingleCardHtml(pub2, allReports, globalMembers, true, serviceYear) : '';
+        const card1Html = generateSingleCardHtml(pub1, allReports, globalMembers, true, serviceYear, config);
+        // If no second publisher (e.g. single publisher print), generate an authentic blank S-21 card below
+        const card2Html = pub2 
+            ? generateSingleCardHtml(pub2, allReports, globalMembers, true, serviceYear, config) 
+            : generateSingleCardHtml({}, [], [], true, serviceYear, config);
 
         pages.push(`
-            <div class="s21-card-page" style="width: 794px; min-height: 1040px; margin: 0 auto; background: #ffffff; color: #000000; padding: 10px 20px; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; page-break-after: always; break-after: page; page-break-inside: avoid; break-inside: avoid; display: flex; flex-direction: column; justify-content: space-between;">
-                <div style="box-sizing: border-box; width: 100%;">
-                    ${card1Html}
-                </div>
-                ${card2Html ? `
-                    <div style="border-top: 1px dashed #64748b; margin: 8px 0 6px 0; position: relative; text-align: center; height: 1px; line-height: 0;">
-                        <span style="position: absolute; top: -5px; left: 50%; transform: translateX(-50%); background: #ffffff; padding: 0 8px; font-size: 6pt; color: #475569; font-weight: bold; letter-spacing: 0.5px;">✂ LÍNEA DE CORTE / DOBLADO (2 EN 1)</span>
+            <div class="s21-card-page" style="width: 794px; height: 1123px; max-height: 1123px; margin: 0 auto; background: #ffffff; color: #000000; padding: ${config.cardPaddingY}px ${config.cardPaddingX}px; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; page-break-after: always; break-after: page; page-break-inside: avoid; break-inside: avoid; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; overflow: hidden;">
+                <div class="s21-card-slot" style="box-sizing: border-box; width: 100%; height: 535px; max-height: 535px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; flex-shrink: 0;">
+                    <div class="s21-card-scale-wrapper" style="box-sizing: border-box; width: 100%; transform: scale(${config.tableScale ? config.tableScale / 100 : 1}); transform-origin: top center;">
+                        ${card1Html}
                     </div>
-                    <div style="box-sizing: border-box; width: 100%;">
+                </div>
+                <div style="border-top: 1px dashed #888888; margin: 6px 0; width: 100%; height: 0px; box-sizing: border-box; flex-shrink: 0;"></div>
+                <div class="s21-card-slot" style="box-sizing: border-box; width: 100%; height: 535px; max-height: 535px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; flex-shrink: 0;">
+                    <div class="s21-card-scale-wrapper" style="box-sizing: border-box; width: 100%; transform: scale(${config.tableScale ? config.tableScale / 100 : 1}); transform-origin: top center;">
                         ${card2Html}
                     </div>
-                ` : `
-                    <div style="border: 1px dashed #cbd5e1; border-radius: 6px; min-height: 250px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 7.5pt; box-sizing: border-box; margin-top: 8px;">
-                        <span>(Espacio disponible para próxima tarjeta)</span>
-                    </div>
-                `}
+                </div>
             </div>
         `);
     }
@@ -359,9 +570,10 @@ export const generateCardsHtml = (
     allReports: any[], 
     globalMembers: any[] = [], 
     layout: '2' | '1' = '2', 
-    serviceYear = new Date().getMonth() + 1 >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear()
+    serviceYear = new Date().getMonth() + 1 >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear(),
+    customConfig?: Partial<S21Config>
 ): string => {
-    return generateCardPagesArray(publishersList, allReports, globalMembers, layout, serviceYear).join('');
+    return generateCardPagesArray(publishersList, allReports, globalMembers, layout, serviceYear, customConfig).join('');
 };
 
 export const fetchReportsForServiceYear = async (

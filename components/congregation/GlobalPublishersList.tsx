@@ -7,7 +7,7 @@ import { isReportAuxiliar } from './utils';
 import { BulkCardsModal } from './BulkCardsModal';
 import { DocumentPreviewModal, DocumentPreviewVariant } from './DocumentPreviewModal';
 import { printHtmlDocument, downloadHtmlAsPdf } from './printUtils';
-import { generateCardPagesArray, fetchReportsForServiceYear } from './s21CardGenerator';
+import { generateCardPagesArray, fetchReportsForServiceYear, S21Config } from './s21CardGenerator';
 import html2pdf from 'html2pdf.js';
 import { 
     Users, 
@@ -864,6 +864,16 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
         });
     };
 
+    const handleRegenerateS21Pages = async (customConfig: S21Config): Promise<string[]> => {
+        const currentDate = new Date();
+        const curM = currentDate.getMonth() + 1;
+        const curY = currentDate.getFullYear();
+        const serviceYear = curM >= 9 ? curY + 1 : curY;
+        const filteredPubs = data.map(d => d.publisher);
+        const reports = await loadReportsIfNeeded(serviceYear);
+        return generateCardPagesArray(filteredPubs, reports, globalMembers, '2', serviceYear, customConfig);
+    };
+
     const handleDownloadFilteredListPdf = async () => {
         if (!data || data.length === 0) {
             alert('No hay publicadores en el filtro actual para descargar.');
@@ -1679,6 +1689,8 @@ const GlobalPublishersList: React.FC<GlobalPublishersListProps> = ({ groups, glo
                     layoutLabel={previewModalData.layoutLabel}
                     variants={previewModalData.variants}
                     activeVariantId={previewModalData.activeVariantId}
+                    isS21={previewModalData.activeVariantId === 'cards' || previewModalData.title.includes('S-21')}
+                    onRegeneratePages={handleRegenerateS21Pages}
                 />
             )}
         </div>

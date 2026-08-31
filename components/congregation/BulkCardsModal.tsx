@@ -1,10 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { fetchAllRows } from '../../lib/supabasePagination';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { printHtmlDocument, downloadHtmlAsPdf } from './printUtils';
-import { generateCardPagesArray, generateCardsHtml } from './s21CardGenerator';
-import { Eye, Printer, Download, FileText, Loader2, X } from 'lucide-react';
+import { 
+    generateCardPagesArray, 
+    generateCardsHtml, 
+    S21Config, 
+    getSavedS21Config, 
+    saveS21Config, 
+    resetS21Config 
+} from './s21CardGenerator';
+import { S21ConfigDrawer } from './S21ConfigDrawer';
+import { Eye, Printer, Download, FileText, Loader2, X, SlidersHorizontal } from 'lucide-react';
 
 
 interface BulkCardsModalProps {
@@ -38,6 +47,8 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
     const [cardsPerPage, setCardsPerPage] = useState<'2' | '1'>('2');
     const [isGenerating, setIsGenerating] = useState<boolean>(false);
     const [statusMessage, setStatusMessage] = useState<string>('');
+    const [showParamDrawer, setShowParamDrawer] = useState<boolean>(false);
+    const [s21Config, setS21Config] = useState<S21Config>(() => getSavedS21Config(cardsPerPage === '2'));
     const [previewModalData, setPreviewModalData] = useState<{
         isOpen: boolean;
         pages: string[];
@@ -45,6 +56,16 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
         fileName: string;
         layoutLabel: string;
     } | null>(null);
+
+    useEffect(() => {
+        setS21Config(getSavedS21Config(cardsPerPage === '2'));
+    }, [cardsPerPage]);
+
+    const handleRegeneratePreviewPages = async (customConfig: S21Config) => {
+        const activePublishers = getFilteredPublishers();
+        const reportsData = await fetchReportsForServiceYear();
+        return generateCardPagesArray(activePublishers, reportsData || [], globalMembers, cardsPerPage, serviceYear, customConfig);
+    };
 
 
     useEffect(() => {
@@ -142,7 +163,7 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
         setStatusMessage('Cargando datos para previsualización...');
         try {
             const reportsData = await fetchReportsForServiceYear();
-            const pages = generateCardPagesArray(activePublishers, reportsData || [], globalMembers, cardsPerPage, serviceYear);
+            const pages = generateCardPagesArray(activePublishers, reportsData || [], globalMembers, cardsPerPage, serviceYear, s21Config);
             const { fileName, title, layoutSlug } = getDocumentInfo();
 
             setPreviewModalData({
@@ -175,7 +196,7 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
             const reportsData = await fetchReportsForServiceYear();
             setStatusMessage('Renderizando páginas PDF de alta calidad...');
 
-            const cardsHtml = generateCardsHtml(activePublishers, reportsData || [], globalMembers, cardsPerPage, serviceYear);
+            const cardsHtml = generateCardsHtml(activePublishers, reportsData || [], globalMembers, cardsPerPage, serviceYear, s21Config);
             const { fileName } = getDocumentInfo();
 
             await downloadHtmlAsPdf(cardsHtml, fileName, (msg) => setStatusMessage(msg));
@@ -206,7 +227,7 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
 
         try {
             const reportsData = await fetchReportsForServiceYear();
-            const cardsHtml = generateCardsHtml(activePublishers, reportsData || [], globalMembers, cardsPerPage, serviceYear);
+            const cardsHtml = generateCardsHtml(activePublishers, reportsData || [], globalMembers, cardsPerPage, serviceYear, s21Config);
             const { title } = getDocumentInfo();
 
             printHtmlDocument(cardsHtml, title);
@@ -251,9 +272,9 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
         return (m?.rol || p.rol || '').toLowerCase().includes('inactivo');
     }).length;
 
-    return (
-        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    const modalContent = (
+        <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto">
                 {/* Modal Header */}
                 <div className="px-6 py-5 bg-slate-900 text-white flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -396,14 +417,25 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
 
                 {/* Modal Footer */}
                 <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isGenerating}
-                        className="px-4 py-2.5 text-slate-600 hover:text-slate-800 font-bold text-xs rounded-xl hover:bg-slate-200/60 transition-colors text-center order-4 sm:order-1"
-                    >
-                        Cancelar
-                    </button>
+                    <div className="flex items-center gap-2 order-4 sm:order-1">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={isGenerating}
+                            className="px-4 py-2.5 text-slate-600 hover:text-slate-800 font-bold text-xs rounded-xl hover:bg-slate-200/60 transition-colors text-center"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowParamDrawer(true)}
+                            className="px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300/80 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                            title="Administrar parámetros de diseño S-21 (alturas, letra y cuadrícula)"
+                        >
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Parámetros</span>
+                        </button>
+                    </div>
 
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 order-1 sm:order-2">
                         <button
@@ -457,9 +489,30 @@ export const BulkCardsModal: React.FC<BulkCardsModalProps> = ({
                     pagesHtml={previewModalData.pages}
                     layoutLabel={previewModalData.layoutLabel}
                     subtitle={`Vista previa de ${activeCount} tarjetas S-21 (${cardsPerPage === '2' ? '2 tarjetas por página A4' : '1 tarjeta por página A4'})`}
+                    isS21={true}
+                    onRegeneratePages={handleRegeneratePreviewPages}
                 />
             )}
+
+            {/* S-21 Parameter Config Drawer */}
+            <S21ConfigDrawer
+                isOpen={showParamDrawer}
+                onClose={() => setShowParamDrawer(false)}
+                config={s21Config}
+                isTwoInOne={cardsPerPage === '2'}
+                onChangeConfig={(newCfg) => {
+                    setS21Config(newCfg);
+                    saveS21Config(newCfg, cardsPerPage === '2');
+                }}
+                onResetDefaults={() => {
+                    const defaults = resetS21Config(cardsPerPage === '2');
+                    setS21Config(defaults);
+                }}
+            />
         </div>
     );
+
+    if (typeof document === 'undefined') return modalContent;
+    return createPortal(modalContent, document.body);
 };
 

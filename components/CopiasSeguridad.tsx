@@ -1710,14 +1710,7 @@ export default function CopiasSeguridad({
 			</div>
 
 			{/* Dos Columnas de Historial */}
-			<div
-				style={{
-					display: "grid",
-					gridTemplateColumns: window.innerWidth < 992 ? "1fr" : "1fr 1fr",
-					gap: "24px",
-					marginBottom: "2rem",
-				}}
-			>
+			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
 				{/* PANEL SUPABASE */}
 				<div
 					style={{
@@ -2376,14 +2369,7 @@ export default function CopiasSeguridad({
 							</div>
 						)}
 
-						<div
-							style={{
-								display: "grid",
-								gridTemplateColumns:
-									window.innerWidth < 768 ? "1fr" : "1fr 1fr",
-								gap: "24px",
-							}}
-						>
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 							<div
 								style={{
 									border: "1px solid #e2e8f0",
@@ -2686,14 +2672,7 @@ export default function CopiasSeguridad({
 										Seguridad contra pérdidas de datos
 									</h5>
 
-									<div
-										style={{
-											display: "flex",
-											flexDirection: window.innerWidth < 768 ? "column" : "row",
-											gap: "16px",
-											fontSize: "0.85rem",
-										}}
-									>
+									<div className="flex flex-col md:flex-row gap-4 text-sm">
 										<label
 											style={{
 												display: "flex",
@@ -3264,14 +3243,7 @@ export default function CopiasSeguridad({
 
 				{activeImportTab === "publishers" && (
 					<>
-						<div
-							style={{
-								display: "grid",
-								gridTemplateColumns:
-									window.innerWidth < 768 ? "1fr" : "1fr 1fr",
-								gap: "24px",
-							}}
-						>
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 							<div
 								style={{
 									border: "1px solid #e2e8f0",
@@ -3566,15 +3538,7 @@ export default function CopiasSeguridad({
 											Seguridad de Datos
 										</h5>
 
-										<div
-											style={{
-												display: "flex",
-												flexDirection:
-													window.innerWidth < 768 ? "column" : "row",
-												gap: "16px",
-												fontSize: "0.85rem",
-											}}
-										>
+										<div className="flex flex-col md:flex-row gap-4 text-sm">
 											<label
 												style={{
 													display: "flex",

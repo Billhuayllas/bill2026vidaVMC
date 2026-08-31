@@ -1,213 +1,21 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { getFridayFromWeekId } from '../lib/utils';
 import { useCongregation } from '../lib/CongregationContext';
 import { useProgramData } from '../lib/useProgramData';
+import html2canvas from 'html2canvas';
+import { 
+    generatePrintHtml, 
+    generatePdfBlob, 
+    createWhatsAppSummary, 
+    PrintAssignment 
+} from './InformesPrintTemplate';
 
-declare const html2canvas: any;
-declare const html2pdf: any;
-
-type Assignment = {
-    participant: string;
-    helper: string;
-    weekId: string;
-    weekTitle: string;
-    partTitle: string;
-    room: string;
-    intendedFor: 'participant' | 'helper';
-};
+type Assignment = PrintAssignment;
 
 interface InformesProps {
     restrictedGroupId?: number | null;
 }
-
-const createPrintSlipHTML = (a: Assignment): string => {
-    const checkmarkHTML = `<div class="checkmark-dot"></div>`;
-    const participantCheck = a.intendedFor === 'participant' ? checkmarkHTML : '';
-    const helperCheck = a.intendedFor === 'helper' && a.helper ? checkmarkHTML : '';
-
-    return `
-        <div class="report-slip-print">
-            <h3 class="title">ASIGNACIÓN PARA LA REUNIÓN<br/>VIDA Y MINISTERIO CRISTIANOS</h3>
-            <div class="field">
-                <strong class="label">Nombre:</strong>
-                <span class="value">${a.participant}</span>
-                ${participantCheck}
-            </div>
-            <div class="field">
-                <strong class="label">Ayudante:</strong>
-                <span class="value">${a.helper || 'Ninguno'}</span>
-                ${helperCheck}
-            </div>
-            <div class="field">
-                <strong class="label">Fecha:</strong>
-                <span class="value">${getFridayFromWeekId(a.weekId, 'long')}</span>
-            </div>
-            <div class="field">
-                <strong class="label">Intervención:</strong>
-                <span class="value">${a.partTitle}</span>
-            </div>
-            <div class="rooms">
-                <strong>Se presentará en:</strong>
-                <div class="room-option ${a.room === 'main' ? 'selected-room' : ''}"><input type="checkbox" ${a.room === 'main' ? 'checked' : ''} disabled /> Sala principal</div>
-                <div class="room-option ${a.room === 'aux2' ? 'selected-room' : ''}"><input type="checkbox" ${a.room === 'aux2' ? 'checked' : ''} disabled /> Sala auxiliar núm. 2</div>
-                <div class="room-option ${a.room === 'aux3' ? 'selected-room' : ''}"><input type="checkbox" ${a.room === 'aux3' ? 'checked' : ''} disabled /> Sala auxiliar núm. 3</div>
-            </div>
-            <div class="footer">
-                <p><strong>Nota:</strong> En la <em>Guía de actividades</em> encontrará la información para su intervención. Repase las <em>Instrucciones para la reunión</em> (S-38).</p>
-                <span>S-89-S 11/23</span>
-            </div>
-        </div>
-    `;
-};
-
-// --- CONFIGURACIÓN DEL DISEÑO DE IMPRESIÓN/PDF ---
-const printStyles = `
-    @page { 
-        size: A4 landscape; 
-        margin: 0; 
-    }
-    body { 
-        margin: 0; 
-        font-family: Arial, sans-serif; 
-        -webkit-print-color-adjust: exact; 
-        print-color-adjust: exact;
-        background-color: white;
-    }
-    .print-page {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: flex-start;
-        align-content: flex-start;
-        width: 29.7cm;
-        padding: 0.5cm;
-        box-sizing: border-box;
-        overflow: hidden;
-        background-color: white;
-    }
-    .print-page:not(:last-child) {
-        page-break-after: always;
-    }
-    .report-slip-print { 
-        border: 1px solid #999; 
-        background-color: #fff; 
-        padding: 0.35cm;
-        display: flex; 
-        flex-direction: column; 
-        font-size: 11px;
-        overflow: hidden;
-        box-sizing: border-box;
-        width: 6.9cm;
-        height: 9.6cm;
-        margin-right: 0.15cm;
-        margin-bottom: 0.15cm;
-        page-break-inside: avoid;
-    }
-    .report-slip-print:nth-child(4n) {
-        margin-right: 0;
-    }
-    .report-slip-print:nth-child(n+5) {
-        margin-bottom: 0;
-    }
-    .report-slip-print .title { 
-        text-align: center; 
-        margin-top: 0; 
-        margin-bottom: 12px;
-        font-size: 13px;
-        line-height: 1.2; 
-        color: #0d6efd; 
-        font-weight: 800;
-    }
-    .report-slip-print .field { 
-        display: flex; 
-        align-items: baseline; 
-        margin-bottom: 6px;
-    }
-    .report-slip-print .label { 
-        width: 70px;
-        flex-shrink: 0; 
-        font-weight: bold; 
-    }
-    .report-slip-print .value { 
-        flex-grow: 1; 
-        border-bottom: 1px dotted #666; 
-        padding-bottom: 1px;
-        padding-left: 4px;
-        word-break: break-word;
-    }
-    .report-slip-print .checkmark-dot {
-        color: #0d6efd;
-        font-weight: bold;
-        font-size: 14px;
-        margin-left: 5px;
-        flex-shrink: 0;
-        align-self: center;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-    .report-slip-print .checkmark-dot::after {
-        content: "✔";
-    }
-    .report-slip-print .rooms { 
-        margin-top: 0.2cm; 
-        display: flex; 
-        flex-direction: column; 
-        gap: 0.1cm; 
-    }
-    .report-slip-print .rooms strong {
-        margin-bottom: 0.05cm;
-    }
-    .report-slip-print .room-option { 
-        display: flex; 
-        align-items: center; 
-        gap: 5px; 
-    }
-    .report-slip-print .room-option.selected-room {
-        font-weight: bold;
-    }
-    .report-slip-print input[type="checkbox"] {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 12px;
-        height: 12px;
-        border: 1.5px solid #333;
-        border-radius: 2px;
-        vertical-align: middle;
-        background-color: transparent;
-        position: relative;
-        top: -1px;
-    }
-    .report-slip-print input[type="checkbox"]:checked {
-        background-color: #0d6efd;
-        border-color: #0d6efd;
-    }
-    .report-slip-print input[type="checkbox"]:checked::after {
-        content: "✔";
-        color: white;
-        font-size: 10px;
-        font-weight: bold;
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        line-height: 1;
-    }
-    .report-slip-print .footer { 
-        margin-top: auto; 
-        padding-top: 0.2cm; 
-        font-size: 7.5pt;
-        color: #555; 
-        border-top: 1px solid #eee; 
-        display: flex; 
-        justify-content: space-between; 
-        align-items: flex-end; 
-    }
-    .report-slip-print .footer p { 
-        margin: 0; 
-    }
-`;
-
 
 const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
     const { currentCongregation } = useCongregation();
@@ -228,11 +36,14 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
     const [personOptions, setPersonOptions] = useState<string[]>([]);
     const [assignmentOptions, setAssignmentOptions] = useState<string[]>([]);
     
+    // Individual Slip sharing
     const [loadingSlipId, setLoadingSlipId] = useState<string | null>(null);
     const [filesToShare, setFilesToShare] = useState<{ [slipId: string]: File }>({});
+
+    // Modal & PDF Generation State
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [pdfStatusMessage, setPdfStatusMessage] = useState('');
     const [showPdfPreviewModal, setShowPdfPreviewModal] = useState(false);
-    const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
     const [pdfPreviewHtml, setPdfPreviewHtml] = useState<string | null>(null);
     const [pdfPreviewBlob, setPdfPreviewBlob] = useState<Blob | null>(null);
 
@@ -359,9 +170,7 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
         
         setAllAssignments(assignments);
         
-        // Remove filtering to allow users to generate reports for past months if they wish.
         const filteredWeeks = Object.keys(fullDataCache).sort();
-
         setWeekOptions(filteredWeeks);
         setPersonOptions(Array.from(participantSet).sort());
         setAssignmentOptions(Array.from(interventionSet).sort());
@@ -385,7 +194,6 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
     useEffect(() => {
         let filtered = allAssignments;
 
-        // Default to filtering from the current week or first future week to match "desde esta semana en adelante".
         let effectiveStartWeek = startWeek;
         if (!effectiveStartWeek && weekOptions.length > 0) {
             const today = new Date();
@@ -395,7 +203,7 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
                 const weekDate = new Date(w);
                 const diffTime = today.getTime() - weekDate.getTime();
                 const diffDays = diffTime / (1000 * 60 * 60 * 24);
-                return diffDays <= 7; // week started up to 7 days ago or is in the future
+                return diffDays <= 7;
             });
             
             effectiveStartWeek = currentOrFutureWeeks[0] || weekOptions[0] || '';
@@ -411,6 +219,7 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
         setFilteredAssignments(filtered);
     }, [startWeek, endWeek, person, assignmentType, allAssignments, weekOptions]);
     
+    // Compartir hoja S-89 individual como imagen
     const handleShare = async (slipId: string) => {
         if (!navigator.share) {
             alert('La función de compartir no está disponible en este navegador.');
@@ -438,8 +247,8 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
     
         try {
             const element = document.querySelector(`.report-slip[data-slip-id="${slipId}"]`) as HTMLElement;
-            if (!element || typeof html2canvas !== 'function') {
-                throw new Error('No se pudo encontrar el elemento para compartir o la librería de captura no está cargada.');
+            if (!element) {
+                throw new Error('No se pudo encontrar el elemento para compartir.');
             }
     
             const elementToCapture = element.cloneNode(true) as HTMLElement;
@@ -452,7 +261,7 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
             elementToCapture.style.width = `${element.offsetWidth}px`;
             document.body.appendChild(elementToCapture);
     
-            const canvas = await html2canvas(elementToCapture, { useCORS: true, scale: 5 });
+            const canvas = await html2canvas(elementToCapture, { useCORS: true, scale: 3 });
             const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
             document.body.removeChild(elementToCapture);
     
@@ -460,9 +269,16 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
                 throw new Error('No se pudo generar la imagen a partir del canvas.');
             }
     
-            const file = new File([blob], 'asignacion.png', { type: 'image/png' });
+            const file = new File([blob], 'asignacion_s89.png', { type: 'image/png' });
             setFilesToShare(prev => ({ ...prev, [slipId]: file }));
-    
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Asignación VMT',
+                    text: 'Aquí está tu asignación para la reunión.'
+                });
+            }
         } catch (error) {
             console.error("Error al generar imagen:", error);
             alert('Ocurrió un error al generar la imagen para compartir.');
@@ -478,143 +294,88 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
         setAssignmentType('');
     };
 
+    // Abre la ventana modal con la hoja A4 completa de 8 hojitas S-89
+    const handleOpenPreviewModal = () => {
+        if (filteredAssignments.length === 0) {
+            alert('No hay asignaciones que coincidan con los filtros seleccionados.');
+            return;
+        }
+
+        const previewHtml = generatePrintHtml(filteredAssignments, true);
+        setPdfPreviewHtml(previewHtml);
+        setShowPdfPreviewModal(true);
+    };
+
+    // Botón Imprimir: Envía a imprimir directamente la hoja A4 con formato landscape oficial
     const handlePrint = () => {
+        if (filteredAssignments.length === 0) {
+            alert('No hay asignaciones para imprimir.');
+            return;
+        }
+
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
             alert('Por favor, permita las ventanas emergentes para imprimir.');
             return;
         }
 
-        const slipsPerPage = 8;
-        const pages = [];
-        for (let i = 0; i < filteredAssignments.length; i += slipsPerPage) {
-            const chunk = filteredAssignments.slice(i, i + slipsPerPage);
-            const pageSlipsHTML = chunk.map(createPrintSlipHTML).join('');
-            pages.push(`<div class="print-page">${pageSlipsHTML}</div>`);
-        }
-        const allPagesHTML = pages.join('');
-        
-        printWindow.document.write(`
-            <!DOCTYPE html><html lang="es">
-            <head><title>Imprimir Asignaciones (S-89)</title><style>${printStyles}</style></head>
-            <body>${allPagesHTML}</body></html>`);
+        const fullHtml = generatePrintHtml(filteredAssignments, false);
+        printWindow.document.open();
+        printWindow.document.write(fullHtml);
         printWindow.document.close();
         printWindow.focus();
+
         setTimeout(() => {
             printWindow.print();
-            printWindow.close();
-        }, 250);
+        }, 400);
     };
 
-    const handleDownloadPdf = () => {
-        if (typeof html2pdf === 'undefined') {
-            alert('La función de descarga no está disponible. Por favor, recargue la página.');
+    // Botón Descargar PDF: Genera y descarga el archivo PDF oficial con las 8 asignaciones por página A4 (con jsPDF + html2canvas sin salir vacío)
+    const handleDownloadPdf = async () => {
+        if (filteredAssignments.length === 0) {
+            alert('No hay asignaciones para descargar.');
             return;
         }
-        setIsDownloadingPdf(true);
-    
-        const slipsPerPage = 8;
-        const pages = [];
-        for (let i = 0; i < filteredAssignments.length; i += slipsPerPage) {
-            const chunk = filteredAssignments.slice(i, i + slipsPerPage);
-            const pageSlipsHTML = chunk.map(createPrintSlipHTML).join('');
-            pages.push(`<div class="preview-page-wrapper"><div class="print-page">${pageSlipsHTML}</div></div>`);
-        }
-        const allPagesHTML = pages.join('');
-        
-        const previewHtml = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>${printStyles}</style>
-                <style>
-                    body { 
-                        background-color: #e2e8f0; 
-                        margin: 0; 
-                        padding: 20px 0; 
-                        display: flex;
-                        justify-content: center;
-                    }
-                    .scale-wrapper {
-                        /* use zoom to scale the entire container without breaking layout width */
-                        zoom: 0.9;
-                    }
-                    .preview-page-wrapper {
-                        width: 29.7cm;
-                        height: 21.0cm;
-                        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-                        margin-bottom: 24px;
-                        background: white;
-                        margin-left: auto;
-                        margin-right: auto;
-                    }
-                    /* Responsive zoom for smaller screens */
-                    @media (max-width: 1200px) { .scale-wrapper { zoom: 0.8; } }
-                    @media (max-width: 1000px) { .scale-wrapper { zoom: 0.6; } }
-                    @media (max-width: 768px) { .scale-wrapper { zoom: 0.45; } }
-                    @media (max-width: 480px) { .scale-wrapper { zoom: 0.3; } }
-                </style>
-            </head>
-            <body>
-                <div class="scale-wrapper">
-                    ${allPagesHTML}
-                </div>
-            </body>
-            </html>
-        `;
-        
-        setPdfPreviewHtml(previewHtml);
-        setShowPdfPreviewModal(true);
-    
-        const container = document.createElement('div');
-        container.style.position = 'absolute';
-        container.style.left = '-9999px';
-        container.style.top = '0';
-        container.style.width = '29.7cm';
-        container.style.backgroundColor = 'white';
-        
-        const styleElement = document.createElement('style');
-        styleElement.innerHTML = printStyles;
-        
-        // Re-generate without scaling for the actual PDF
-        const pdfPages = [];
-        for (let i = 0; i < filteredAssignments.length; i += slipsPerPage) {
-            const chunk = filteredAssignments.slice(i, i + slipsPerPage);
-            const pageSlipsHTML = chunk.map(createPrintSlipHTML).join('');
-            pdfPages.push(`<div class="print-page">${pageSlipsHTML}</div>`);
-        }
-        
-        const content = document.createElement('div');
-        content.style.width = '29.7cm';
-        content.innerHTML = pdfPages.join('');
-        
-        content.appendChild(styleElement);
-        container.appendChild(content);
-        document.body.appendChild(container);
-    
-        const opt = {
-            margin: 0,
-            filename: 'asignaciones_vmt.pdf',
-            image: { type: 'jpeg', quality: 1 },
-            html2canvas: { scale: 3, useCORS: true, logging: false, letterRendering: true },
-            jsPDF: { unit: 'cm', format: 'a4', orientation: 'landscape', compress: true },
-            pagebreak: { mode: ['css', 'legacy'] }
-        };
-    
-        html2pdf().from(content).set(opt).output('blob').then((pdfBlob: Blob) => {
-            const url = URL.createObjectURL(pdfBlob);
-            setPdfPreviewBlob(pdfBlob);
-            setPdfPreviewUrl(url);
+
+        try {
+            setIsDownloadingPdf(true);
+            setPdfStatusMessage('Preparando generación...');
+
+            const { blob, doc } = await generatePdfBlob(filteredAssignments, (msg) => {
+                setPdfStatusMessage(msg);
+            });
+
+            setPdfPreviewBlob(blob);
+
+            // Generamos un nombre descriptivo para el archivo PDF
+            const congName = currentCongregation?.nombre ? `_${currentCongregation.nombre.replace(/\s+/g, '_')}` : '';
+            const filename = `Asignaciones_S89${congName}.pdf`;
+
+            doc.save(filename);
+        } catch (error: any) {
+            console.error("Error al generar PDF:", error);
+            alert(error.message || 'Ocurrió un error al generar el PDF.');
+        } finally {
             setIsDownloadingPdf(false);
-            document.body.removeChild(container);
-        }).catch((err: any) => {
-            console.error("PDF generation failed:", err);
-            alert('Ocurrió un error al generar el PDF.');
-            setIsDownloadingPdf(false);
-            document.body.removeChild(container);
-        });
+            setPdfStatusMessage('');
+        }
     };
 
+    // Botón Enviar: Abre WhatsApp con el resumen de todas las asignaciones seleccionadas
+    const handleShareWhatsApp = async () => {
+        if (filteredAssignments.length === 0) {
+            alert('No hay asignaciones seleccionadas para compartir.');
+            return;
+        }
+
+        const summaryText = createWhatsAppSummary(filteredAssignments, currentCongregation?.nombre);
+        
+        // Si el usuario está en un dispositivo móvil y desea compartir texto por WhatsApp
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(summaryText)}`;
+        window.open(whatsappUrl, '_blank');
+    };
+
+    const totalPages = Math.ceil(filteredAssignments.length / 8) || 1;
 
     return (
         <div id="reports-container" className="container mx-auto px-4 py-8">
@@ -665,20 +426,24 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
                         </select>
                     </div>
                 </div>
-                <div className="filter-actions">
-                    <button onClick={handleClearFilters} className="btn-clear-filters">Limpiar</button>
+                <div className="filter-actions flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <button onClick={handleClearFilters} className="btn-clear-filters">
+                        <i className="fas fa-undo mr-1.5 text-xs"></i> Limpiar
+                    </button>
                     <div className="action-buttons-group flex items-center gap-2">
-                        {/* <button onClick={handlePrint} className="button-print"><i className="fas fa-print"></i></button> */}
-                        <button onClick={handleDownloadPdf} className="download-button bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-75 disabled:cursor-wait" disabled={isDownloadingPdf}>
-                            {isDownloadingPdf ? <i className="fas fa-spinner fa-spin text-lg"></i> : <i className="fas fa-file-pdf text-lg"></i>}
-                            <span>Descargar</span>
+                        <button 
+                            onClick={handleOpenPreviewModal} 
+                            className="download-button bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-sm cursor-pointer"
+                        >
+                            <i className="fas fa-file-pdf text-base"></i>
+                            <span>Imprimir / Guardar PDF</span>
                         </button>
                     </div>
                 </div>
             </div>
 
             <p className="filter-note">
-                <i className="fas fa-info-circle mr-1"></i> Se muestran asignaciones desde esta semana en adelante.
+                <i className="fas fa-info-circle mr-1"></i> Se muestran asignaciones desde esta semana en adelante ({filteredAssignments.length} asignaciones encontradas).
             </p>
 
             <div id="reports-output">
@@ -743,83 +508,97 @@ const Informes: React.FC<InformesProps> = ({ restrictedGroupId }) => {
                 })}
             </div>
 
+            {/* Ventana Modal con la hoja A4 completa de 8 hojitas S-89 */}
             {showPdfPreviewModal && (
-                <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-                        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                            <h3 className="font-bold text-slate-800 text-lg">Vista Previa de PDF</h3>
-                            <button onClick={() => setShowPdfPreviewModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                                <i className="fas fa-times text-xl"></i>
+                <div className="fixed inset-0 z-[10008] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-2 sm:p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+                        {/* Header */}
+                        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-850">
+                            <div>
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base sm:text-lg flex items-center gap-2 m-0">
+                                    <i className="fas fa-file-pdf text-indigo-600 dark:text-indigo-400"></i>
+                                    <span>Vista Previa - Hojas S-89 (A4)</span>
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 m-0 mt-0.5">
+                                    {filteredAssignments.length} asignación(es) • {totalPages} página(s) A4 (8 hojitas por página)
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => setShowPdfPreviewModal(false)} 
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer"
+                                title="Cerrar vista previa"
+                            >
+                                <i className="fas fa-times text-lg"></i>
                             </button>
                         </div>
-                        <div className="p-0 flex-1 overflow-auto bg-slate-200 flex flex-col items-center">
+
+                        {/* Body Preview */}
+                        <div className="p-2 sm:p-4 flex-1 overflow-auto bg-slate-100 dark:bg-slate-950 flex flex-col items-center">
                             {pdfPreviewHtml ? (
                                 <iframe 
                                     srcDoc={pdfPreviewHtml} 
-                                    className="w-full h-[60vh] border-0" 
-                                    title="PDF Preview"
+                                    className="w-full h-[62vh] rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm bg-white" 
+                                    title="Vista Previa Hojas S-89"
                                     sandbox="allow-same-origin allow-scripts"
                                 ></iframe>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full p-8">
-                                    <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
-                                    <p className="text-slate-500 font-medium">Generando vista previa...</p>
+                                    <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3"></div>
+                                    <p className="text-slate-600 dark:text-slate-300 font-medium text-sm">Cargando vista previa...</p>
                                 </div>
                             )}
                         </div>
-                        <div className="px-5 py-4 border-t border-slate-100 flex flex-col sm:flex-row gap-3 justify-end bg-white">
+
+                        {/* Footer Action Buttons */}
+                        <div className="px-5 py-3.5 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-end gap-2.5 bg-slate-50 dark:bg-slate-850">
+                            {/* 1. Cancelar */}
                             <button 
+                                type="button"
                                 onClick={() => setShowPdfPreviewModal(false)}
-                                className="px-5 py-2.5 rounded-lg font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                                className="px-4 py-2.5 rounded-xl font-semibold text-slate-700 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition cursor-pointer text-sm"
                             >
                                 Cancelar
                             </button>
+
+                            {/* 2. Imprimir */}
                             <button 
+                                type="button"
                                 onClick={handlePrint}
-                                className="px-5 py-2.5 rounded-lg font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                className="px-4 py-2.5 rounded-xl font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-xs flex items-center justify-center gap-2 cursor-pointer text-sm"
                             >
-                                <i className="fas fa-print"></i>
-                                Imprimir
+                                <i className="fas fa-print text-indigo-600 dark:text-indigo-400"></i>
+                                <span>Imprimir</span>
                             </button>
+
+                            {/* 3. Descargar PDF */}
                             <button 
-                                onClick={() => {
-                                    if (pdfPreviewUrl) {
-                                        const link = document.createElement('a');
-                                        link.href = pdfPreviewUrl;
-                                        link.download = 'asignaciones_vmt.pdf';
-                                        link.click();
-                                    }
-                                }}
-                                className="px-5 py-2.5 rounded-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                type="button"
+                                onClick={handleDownloadPdf}
+                                disabled={isDownloadingPdf}
+                                className="px-5 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-98 transition shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-wait text-sm"
                             >
-                                <i className="fas fa-file-download"></i>
-                                Descargar PDF
+                                {isDownloadingPdf ? (
+                                    <>
+                                        <i className="fas fa-spinner fa-spin"></i>
+                                        <span>{pdfStatusMessage || 'Generando PDF...'}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fas fa-download"></i>
+                                        <span>Descargar PDF</span>
+                                    </>
+                                )}
                             </button>
+
+                            {/* 4. Enviar */}
                             <button 
-                                onClick={async () => {
-                                    if (pdfPreviewBlob && navigator.share) {
-                                        try {
-                                            const file = new File([pdfPreviewBlob], 'asignaciones_vmt.pdf', { type: 'application/pdf' });
-                                            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                                                await navigator.share({
-                                                    files: [file],
-                                                    title: 'Asignaciones VMT',
-                                                    text: 'Aquí están las asignaciones en formato PDF.'
-                                                });
-                                            } else {
-                                                alert('Este navegador no soporta el compartir archivos PDF.');
-                                            }
-                                        } catch (e) {
-                                            console.error(e);
-                                        }
-                                    } else {
-                                        alert('Su navegador no soporta la función de compartir integrada.');
-                                    }
-                                }}
-                                className="px-5 py-2.5 rounded-lg font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center gap-2"
+                                type="button"
+                                onClick={handleShareWhatsApp}
+                                className="px-5 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 transition shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
+                                title="Enviar resumen por WhatsApp"
                             >
-                                <i className="fab fa-whatsapp"></i>
-                                Enviar
+                                <i className="fab fa-whatsapp text-base"></i>
+                                <span>Enviar</span>
                             </button>
                         </div>
                     </div>

@@ -18,6 +18,7 @@ import {
     Info
 } from 'lucide-react';
 import { PWAInstallState } from '../lib/usePWAInstall';
+import { VMCLogo } from './VMCLogo';
 
 interface InstallAppModalProps {
     isOpen: boolean;
@@ -84,16 +85,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
                 {/* MODAL HEADER */}
                 <div className="relative bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-800 text-white p-5 sm:p-6 flex items-start justify-between">
                     <div className="flex items-center gap-3 sm:gap-4">
-                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl overflow-hidden bg-white shadow-md p-1 shrink-0 border-2 border-white/30">
-                            <img 
-                                src="/icon-192.png" 
-                                alt="Icono de la App" 
-                                className="w-full h-full object-cover rounded-xl"
-                                onError={(e) => {
-                                    (e.currentTarget as HTMLElement).style.display = 'none';
-                                }}
-                            />
-                        </div>
+                        <VMCLogo size={52} rounded="2xl" showBorder={true} className="shrink-0 shadow-lg" />
                         <div>
                             <div className="flex items-center gap-2">
                                 <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] sm:text-xs font-bold tracking-wider uppercase text-blue-100">

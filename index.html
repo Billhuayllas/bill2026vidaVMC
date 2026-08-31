@@ -133,7 +133,7 @@
 
     main {
         flex: 1;
-        padding: 20px;
+        padding: 16px;
         max-width: 1200px;
         margin: 0 auto;
         width: 100%;
@@ -141,10 +141,9 @@
         padding-bottom: 20px; 
     }
     
-    @media (max-width: 768px) {
+    @media (max-width: 640px) {
         main {
-            /* Basic padding, sticky footer handled by spacer component */
-            padding-bottom: 20px;
+            padding: 8px 6px 20px 6px;
         }
     }
 
@@ -704,29 +703,48 @@
     }
 
     /* --- MANAGERS (Gestionar Participantes) --- */
-    .managers-container { padding: 20px; }
+    .managers-container { 
+        padding: 0; 
+        background: transparent;
+        border: none;
+        box-shadow: none;
+    }
     .sub-nav-menu {
         display: flex;
-        flex-wrap: wrap;
         gap: 8px;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
         border-bottom: 1px solid var(--border-color);
-        padding-bottom: 15px;
+        padding-bottom: 10px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .sub-nav-menu::-webkit-scrollbar {
+        display: none;
     }
     .sub-nav-button {
-        background: transparent;
+        background: var(--card-bg-color);
         border: 1px solid var(--border-color);
         color: var(--text-color-light);
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-size: 0.9rem;
+        padding: 7px 14px;
+        border-radius: 9999px;
+        font-size: 0.85rem;
+        font-weight: 600;
         cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: all 0.2s ease;
+    }
+    .sub-nav-button:hover {
+        border-color: var(--primary-color);
+        color: var(--text-color);
     }
     .sub-nav-button.active {
-        background-color: var(--text-color);
-        color: var(--bg-color);
-        border-color: var(--text-color);
-        font-weight: 600;
+        background-color: var(--primary-color);
+        color: #ffffff;
+        border-color: var(--primary-color);
+        font-weight: 700;
+        box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
     }
     .participant-item {
         display: flex;

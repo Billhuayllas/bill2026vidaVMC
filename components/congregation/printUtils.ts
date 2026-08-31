@@ -1,9 +1,10 @@
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+
 /**
  * Universal print and PDF utilities to guarantee reliable document rendering,
  * avoid blank print previews, and bypass browser popup/iframe restrictions.
  */
-
-declare const html2pdf: any;
 
 export const printHtmlDocument = (htmlContent: string, title: string = 'Documento'): void => {
     // Create an invisible iframe for isolated printing
@@ -33,8 +34,30 @@ export const printHtmlDocument = (htmlContent: string, title: string = 'Document
             <title>${title}</title>
             <style>
                 @page {
-                    size: A4 portrait;
-                    margin: 8mm 8mm 8mm 8mm;
+                    size: 210mm 297mm portrait;
+                    margin: 0;
+                }
+                @media print {
+                    html, body {
+                        width: 210mm !important;
+                        height: 297mm !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        background: #ffffff !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    .s21-card-page {
+                        page-break-after: always !important;
+                        break-after: page !important;
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                    }
+                    .s21-card-page:last-child {
+                        page-break-after: auto !important;
+                        break-after: auto !important;
+                    }
                 }
                 * {
                     box-sizing: border-box;
@@ -47,15 +70,21 @@ export const printHtmlDocument = (htmlContent: string, title: string = 'Document
                     padding: 0;
                     background: #ffffff !important;
                     color: #000000 !important;
-                    font-family: Arial, Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    -webkit-font-smoothing: antialiased;
+                    -moz-osx-font-smoothing: grayscale;
                 }
                 .s21-card-page {
+                    width: 210mm;
+                    height: 297mm;
+                    box-sizing: border-box;
                     page-break-after: always;
                     break-after: page;
                     page-break-inside: avoid;
                     break-inside: avoid;
                     margin: 0 auto;
                     background: #ffffff;
+                    overflow: hidden;
                 }
                 .s21-card-page:last-child {
                     page-break-after: auto;
@@ -91,29 +120,38 @@ export const printHtmlDocument = (htmlContent: string, title: string = 'Document
     }, 450);
 };
 
+/**
+ * Genera y descarga el archivo PDF de alta resolución usando jsPDF y html2canvas.
+ * Garantiza que ninguna página salga en blanco y captura exactamente las dimensiones A4.
+ */
 export const downloadHtmlAsPdf = async (
     htmlContent: string, 
     fileName: string,
     onProgress?: (msg: string) => void
 ): Promise<void> => {
-    if (onProgress) onProgress('Preparando renderizado...');
+    if (onProgress) onProgress('Preparando páginas para renderizado...');
 
+    const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+    });
+
+    // Contenedor temporal aislado montado en el DOM con visibilidad controlada
     const container = document.createElement('div');
     container.style.position = 'fixed';
-    container.style.left = '-9999px';
+    container.style.left = '0';
     container.style.top = '0';
     container.style.width = '794px';
+    container.style.minHeight = '1123px';
     container.style.backgroundColor = '#ffffff';
     container.style.color = '#000000';
-    container.style.zIndex = '99999';
+    container.style.zIndex = '-99999';
     container.style.opacity = '1';
     container.style.pointerEvents = 'none';
 
     const printStyles = `
-        @page {
-            size: A4 portrait;
-            margin: 8mm 8mm;
-        }
         * {
             box-sizing: border-box;
             -webkit-print-color-adjust: exact !important;
@@ -124,17 +162,19 @@ export const downloadHtmlAsPdf = async (
             padding: 0;
             background: #ffffff;
             color: #000000;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         .s21-card-page {
-            page-break-after: always;
-            break-after: page;
-            page-break-inside: avoid;
-            break-inside: avoid;
-        }
-        .s21-card-page:last-child {
-            page-break-after: auto;
-            break-after: auto;
+            width: 794px;
+            height: 1123px;
+            max-height: 1123px;
+            background: #ffffff;
+            color: #000000;
+            box-sizing: border-box;
+            overflow: hidden;
+            margin: 0 auto;
         }
     `;
 
@@ -142,40 +182,69 @@ export const downloadHtmlAsPdf = async (
     styleEl.innerHTML = printStyles;
     container.appendChild(styleEl);
 
-    const contentWrapper = document.createElement('div');
-    contentWrapper.innerHTML = htmlContent;
-    container.appendChild(contentWrapper);
+    const tempWrapper = document.createElement('div');
+    tempWrapper.innerHTML = htmlContent;
+    
+    // Obtenemos las páginas individuales (ya sea .s21-card-page o contenedores de página)
+    let pageElements = Array.from(tempWrapper.querySelectorAll('.s21-card-page')) as HTMLElement[];
+    if (pageElements.length === 0) {
+        // Fallback si no hay clase .s21-card-page
+        pageElements = Array.from(tempWrapper.children) as HTMLElement[];
+    }
+
+    if (pageElements.length === 0) {
+        // Si es un solo bloque de HTML
+        pageElements = [tempWrapper];
+    }
+
     document.body.appendChild(container);
 
     try {
-        if (onProgress) onProgress('Generando páginas PDF de alta resolución...');
-        await new Promise(resolve => setTimeout(resolve, 200));
+        const totalPages = pageElements.length;
 
-        const opt = {
-            margin: [8, 8, 8, 8],
-            filename: fileName,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
-                scale: 2, 
-                useCORS: true, 
-                logging: false, 
+        for (let i = 0; i < totalPages; i++) {
+            if (onProgress) onProgress(`Generando página ${i + 1} de ${totalPages}...`);
+
+            // Limpiamos y agregamos solo la página actual
+            const currentPg = pageElements[i].cloneNode(true) as HTMLElement;
+            currentPg.style.width = '794px';
+            currentPg.style.height = '1123px';
+            currentPg.style.maxHeight = '1123px';
+            currentPg.style.backgroundColor = '#ffffff';
+            currentPg.style.overflow = 'hidden';
+
+            // Removemos hijos anteriores
+            while (container.childNodes.length > 1) {
+                container.removeChild(container.lastChild!);
+            }
+            container.appendChild(currentPg);
+
+            // Breve espera para que el motor renderice estilos y fuentes con nitidez
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const canvas = await html2canvas(currentPg, {
+                scale: 2.5,
+                useCORS: true,
                 backgroundColor: '#ffffff',
+                logging: false,
+                width: 794,
+                height: 1123,
                 windowWidth: 794,
-                scrollY: 0,
-                scrollX: 0
-            },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak: { mode: ['css', 'legacy'] }
-        };
+                windowHeight: 1123
+            });
 
-        const pdfFn = (html2pdf as any) || (window as any).html2pdf;
-        if (typeof pdfFn === 'function') {
-            await pdfFn().set(opt).from(container).save();
-        } else {
-            const mod = await import('html2pdf.js');
-            const h2p = (mod as any).default || mod;
-            await h2p().set(opt).from(container).save();
+            const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+            if (i > 0) {
+                doc.addPage('a4', 'portrait');
+            }
+
+            // Mantenemos la proporción A4 exacta (210mm x 297mm) sin estirar ni deformar
+            doc.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
         }
+
+        if (onProgress) onProgress('Finalizando y guardando PDF...');
+        doc.save(fileName);
     } finally {
         if (document.body.contains(container)) {
             document.body.removeChild(container);

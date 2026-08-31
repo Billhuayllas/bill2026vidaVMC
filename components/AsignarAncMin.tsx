@@ -83,52 +83,55 @@ const AsignarAncMin: React.FC<AsignarAncMinProps> = ({ isReadOnly = false }) => 
     if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
 
     return (
-        <div className="container mx-auto px-4 py-8 asignar-anc-min-page">
-            <div className="page-header-container">
-                <h1 className="page-title">
-                    Asignaciones: Ancianos y S. Ministeriales
-                </h1>
-                <div className="controls-container">
-                    <div className="month-selector-wrapper">
-                        <i className="fas fa-calendar-alt"></i>
-                        <select id="month-selector" value={selectedMonth} onChange={handleMonthChange}>
+        <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8 asignar-anc-min-page">
+            <div className="page-header-container flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <div>
+                    <h1 className="page-title text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">
+                        Asignaciones: Ancianos y S. Ministeriales
+                    </h1>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Programa mensual para presidentes, consejeros, discursantes y conductores.
+                    </p>
+                </div>
+
+                <div className="controls-container flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                    <div className="month-selector-wrapper flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-sm flex-1 sm:flex-initial">
+                        <i className="fas fa-calendar-alt text-indigo-500 text-sm"></i>
+                        <select 
+                            id="month-selector" 
+                            value={selectedMonth} 
+                            onChange={handleMonthChange}
+                            className="bg-transparent text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none cursor-pointer flex-1"
+                        >
                             {availableMonths.map((key, idx) => {
                                 const [year, month] = key.split('-');
                                 const date = new Date(Number(year), Number(month) - 1);
-                                return <option key={`anc-month-${key}-${idx}`} value={key}>{date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</option>
+                                return <option key={`anc-month-${key}-${idx}`} value={key} className="text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800">{date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</option>
                             })}
                         </select>
-                        {isReadOnly ? (
-                            <span style={{fontSize:'0.8rem', verticalAlign:'middle', backgroundColor:'#ef4444', color:'white', padding:'4px 8px', borderRadius:'4px', marginLeft:'8px'}}>Solo Lectura</span>
-                        ) : (
-                            <button
-                                onClick={() => setIsEditMode(!isEditMode)}
-                                style={{
-                                    fontSize: '0.8rem',
-                                    fontWeight: 'bold',
-                                    color: isEditMode ? 'white' : '#475569',
-                                    backgroundColor: isEditMode ? '#10b981' : '#f1f5f9',
-                                    border: `1px solid ${isEditMode ? '#059669' : '#cbd5e1'}`,
-                                    padding: '6px 12px',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    transition: 'all 0.2s',
-                                    marginLeft: '8px'
-                                }}
-                            >
-                                <i className={`fas ${isEditMode ? 'fa-unlock' : 'fa-lock'}`}></i>
-                                {isEditMode ? 'Edición Activa' : 'Modo Edición'}
-                            </button>
-                        )}
                     </div>
+
+                    {isReadOnly ? (
+                        <span className="text-xs font-bold bg-rose-500 text-white px-2.5 py-1.5 rounded-xl shadow-sm">Solo Lectura</span>
+                    ) : (
+                        <button
+                            onClick={() => setIsEditMode(!isEditMode)}
+                            className={`text-xs font-bold px-3 py-2 rounded-xl border flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                                isEditMode 
+                                    ? 'bg-emerald-600 border-emerald-700 text-white' 
+                                    : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                            <i className={`fas ${isEditMode ? 'fa-unlock' : 'fa-lock'}`}></i>
+                            <span>{isEditMode ? 'Edición Activa' : 'Modo Edición'}</span>
+                        </button>
+                    )}
+
                     {!effectiveIsReadOnly && (
                         <button 
                             onClick={handleSaveChanges} 
                             disabled={Object.keys(changes).length === 0 || saveStatus?.type === 'loading'}
-                            className="save-changes-button"
+                            className="save-changes-button bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer disabled:cursor-not-allowed"
                         >
                             {saveStatus?.type === 'loading' ? (
                                 <><i className="fas fa-spinner fa-spin"></i> Guardando...</>
@@ -141,15 +144,101 @@ const AsignarAncMin: React.FC<AsignarAncMinProps> = ({ isReadOnly = false }) => 
             </div>
 
             {saveStatus && saveStatus.type !== 'loading' && (
-                <div className={`feedback-message type--${saveStatus.type}`}>
+                <div className={`feedback-message type--${saveStatus.type} mb-4 p-3 rounded-xl text-xs sm:text-sm font-semibold`}>
                     {saveStatus.message}
                 </div>
             )}
             
             <div className="assignments-content">
-                <div className="assignment-main-view">
-                     <div className="assignment-table-container">
-                        <table className="assignment-table">
+                {/* --- MOBILE VIEW: RESPONSIVE CARDS PER WEEK --- */}
+                <div className="block lg:hidden space-y-4">
+                    {programsForMonth.map((prog, idx) => {
+                        const vidaCristiana = getProgramValue(prog.week_id, 'vidaCristiana') || [];
+                        const discursoPart = vidaCristiana.find((p: any) => p.hasOwnProperty('discursante') && !p.titulo?.toLowerCase().includes('necesidades'));
+                        const discursoPath = discursoPart ? `vidaCristiana.${vidaCristiana.indexOf(discursoPart)}.discursante` : null;
+
+                        const necesidadesPart = vidaCristiana.find((p: any) => p.titulo?.toLowerCase().includes('necesidades'));
+                        const necesidadesPath = necesidadesPart ? `vidaCristiana.${vidaCristiana.indexOf(necesidadesPart)}.discursante` : null;
+
+                        const libroPart = vidaCristiana.find((p: any) => p.hasOwnProperty('conductor'));
+                        const libroPath = libroPart ? `vidaCristiana.${vidaCristiana.indexOf(libroPart)}.conductor` : null;
+
+                        return (
+                            <div key={`mob-anc-${prog.week_id}-${idx}`} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+                                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                                        <h3 className="font-bold text-sm text-slate-800 dark:text-white">
+                                            {getFridayFromWeekId(prog.week_id, 'long')}
+                                        </h3>
+                                    </div>
+                                    {!effectiveIsReadOnly && (
+                                        <button
+                                            onClick={handleSaveChanges}
+                                            disabled={Object.keys(changes).length === 0 || saveStatus?.type === 'loading'}
+                                            className={`text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 transition ${
+                                                Object.keys(changes).length === 0 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' : 'bg-emerald-600 text-white shadow-sm'
+                                            }`}
+                                        >
+                                            <i className="fas fa-save"></i> Guardar
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">Presidente:</span>
+                                        {renderAssignment(prog.week_id, 'presidentes.principal', 'presidentes')}
+                                    </div>
+
+                                    {settings.aux2 && (
+                                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">Consejero Sala 2:</span>
+                                            {renderAssignment(prog.week_id, 'presidentes.aux2', 'consejeros')}
+                                        </div>
+                                    )}
+
+                                    {settings.aux3 && (
+                                        <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">Consejero Sala 3:</span>
+                                            {renderAssignment(prog.week_id, 'presidentes.aux3', 'consejeros')}
+                                        </div>
+                                    )}
+
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Tesoros (Punto 1):</span>
+                                        {renderAssignment(prog.week_id, 'tesoros.p1.main', 'discursantes')}
+                                    </div>
+
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Perlas Escondidas:</span>
+                                        {renderAssignment(prog.week_id, 'tesoros.p2.main', 'discursantes')}
+                                    </div>
+
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Discurso Vida Cr.:</span>
+                                        {renderAssignment(prog.week_id, discursoPath, 'discursantes')}
+                                    </div>
+
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Necesidades Cong.:</span>
+                                        {renderAssignment(prog.week_id, necesidadesPath, 'discursantes')}
+                                    </div>
+
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Estudio del Libro:</span>
+                                        {renderAssignment(prog.week_id, libroPath, 'discursantes')}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* --- DESKTOP VIEW: FULL TABLE --- */}
+                <div className="hidden lg:block assignment-main-view">
+                     <div className="assignment-table-container overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
+                        <table className="assignment-table w-full">
                             <thead>
                                 <tr>
                                     <th>Fecha (Viernes)</th>

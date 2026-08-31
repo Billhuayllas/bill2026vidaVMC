@@ -2,6 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useCongregation } from '../lib/CongregationContext';
+import { 
+    AttendanceAlarmConfig, 
+    DEFAULT_ALARM_CONFIG, 
+    DAYS_OF_WEEK, 
+    playAttendanceAlarmSound, 
+    requestAppNotificationPermission 
+} from '../lib/attendanceAlarmService';
 
 // Pestañas disponibles en el sistema
 export const ALL_TABS = [
@@ -56,6 +63,10 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
     // Configuración General (Salas)
     const [enabledRooms, setEnabledRooms] = useState({ main: true, aux2: true, aux3: true });
     const [loadingSettings, setLoadingSettings] = useState(false);
+
+    // Configuración de Alarmas de Asistencia
+    const [attendanceAlarms, setAttendanceAlarms] = useState<AttendanceAlarmConfig>(DEFAULT_ALARM_CONFIG);
+    const [loadingAlarmSettings, setLoadingAlarmSettings] = useState(false);
 
     // Estado del Formulario
     const [label, setLabel] = useState('');
@@ -233,6 +244,13 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
             } else if (currentCongregation.settings?.enabled_rooms) {
                 setEnabledRooms(currentCongregation.settings.enabled_rooms);
             }
+
+            if (currentCongregation.settings?.attendance_alarms) {
+                setAttendanceAlarms({
+                    ...DEFAULT_ALARM_CONFIG,
+                    ...currentCongregation.settings.attendance_alarms
+                });
+            }
         }
     }, [currentCongregation, roomsMonth]);
 
@@ -369,15 +387,41 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
         if (isReadOnly) return;
         setSelectedTabs(prev => {
             const index = prev.findIndex(t => t.name === tabName);
+            let nextAccess: 'view' | 'edit' | 'none' = 'view';
+            
             if (index === -1) {
-                return [...prev, { name: tabName, access: 'view' }];
+                nextAccess = 'view';
             } else if (prev[index].access === 'view') {
-                const newTabs = [...prev];
-                newTabs[index] = { ...newTabs[index], access: 'edit' };
-                return newTabs;
+                nextAccess = 'edit';
             } else {
-                return prev.filter(t => t.name !== tabName);
+                nextAccess = 'none';
             }
+
+            let newTabs = [...prev];
+            if (nextAccess === 'none') {
+                newTabs = newTabs.filter(t => t.name !== tabName);
+            } else if (index === -1) {
+                newTabs.push({ name: tabName, access: nextAccess });
+            } else {
+                newTabs[index] = { ...newTabs[index], access: nextAccess };
+            }
+
+            // If toggling 'Grupo de Congregación', also update related subtabs
+            if (tabName === 'Grupo de Congregación') {
+                const subTabs = ["↳ Mi Grupo", "↳ Resumen General", "↳ Lista de Publicadores", "Rol de Grupos"];
+                subTabs.forEach(sub => {
+                    const subIndex = newTabs.findIndex(t => t.name === sub);
+                    if (nextAccess === 'none') {
+                        newTabs = newTabs.filter(t => t.name !== sub);
+                    } else if (subIndex === -1) {
+                        newTabs.push({ name: sub, access: nextAccess });
+                    } else {
+                        newTabs[subIndex] = { ...newTabs[subIndex], access: nextAccess };
+                    }
+                });
+            }
+
+            return newTabs;
         });
     };
 
@@ -439,6 +483,29 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
         setTimeout(() => setStatusMessage(null), 3000);
     };
 
+    const saveAttendanceAlarmSettings = async () => {
+        if (!currentCongregation || isReadOnly) return;
+        setLoadingAlarmSettings(true);
+        
+        const newSettings = {
+            ...currentCongregation.settings,
+            attendance_alarms: attendanceAlarms
+        };
+
+        const { error } = await supabase.from('congregations')
+            .update({ settings: newSettings })
+            .eq('id', currentCongregation.id);
+        
+        if (!error) {
+            setStatusMessage({ text: 'Configuración de alarmas de asistencia guardada correctamente', type: 'success' });
+            await refreshCongregations();
+        } else {
+            setStatusMessage({ text: `Error: ${error.message}`, type: 'error' });
+        }
+        setLoadingAlarmSettings(false);
+        setTimeout(() => setStatusMessage(null), 3500);
+    };
+
     const handleTestClick = (config: AccessConfig) => {
         setVerifyConfig(config);
         setVerifyInput('');
@@ -466,12 +533,12 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
     };
 
     return (
-        <div className="container mx-auto px-4 py-8 relative">
-            <div style={{marginBottom: '20px', padding: '15px', backgroundColor: '#f0f9ff', borderLeft: '4px solid #3b82f6', borderRadius: '4px'}}>
-                <h2 style={{margin: '0 0 5px 0', fontSize: '1.2rem', color: '#1e3a8a'}}>
+        <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6 box-border overflow-x-hidden">
+            <div style={{marginBottom: '16px', padding: '12px 14px', backgroundColor: '#f0f9ff', borderLeft: '4px solid #3b82f6', borderRadius: '8px'}}>
+                <h2 style={{margin: '0 0 4px 0', fontSize: '1rem', fontWeight: '800', color: '#1e3a8a'}}>
                     {isSuperAdmin ? 'Administrador Global' : `Administración Local: ${currentCongregation?.name || ''}`}
                 </h2>
-                <p style={{margin: 0, fontSize: '0.9rem', color: '#4b5563'}}>
+                <p style={{margin: 0, fontSize: '0.8rem', color: '#4b5563'}}>
                     {isReadOnly 
                         ? 'Estás en modo de solo lectura. No puedes crear ni modificar usuarios.' 
                         : 'Puedes crear y gestionar contraseñas de acceso para esta congregación.'}
@@ -480,64 +547,215 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
 
             {/* Configuración de Salas */}
             {!isReadOnly && (
-                <div style={{ backgroundColor: 'var(--card-bg-color)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-color)', marginBottom: '30px', boxShadow: 'var(--shadow-md)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
-                        <h3 style={{ margin: 0, color: 'var(--primary-color)', fontSize: '1.2rem', fontWeight: '800' }}>
-                            <i className="fas fa-door-open mr-2"></i>Salas Activas de la Congregación
+                <div style={{ backgroundColor: 'var(--card-bg-color)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', marginBottom: '16px', boxShadow: 'var(--shadow-md)', boxSizing: 'border-box', width: '100%' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
+                        <h3 style={{ margin: 0, color: 'var(--primary-color)', fontSize: '0.95rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <i className="fas fa-door-open"></i> Salas Activas de la Congregación
                         </h3>
                         
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <label style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-color-light)' }}>Configurar para:</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontWeight: '600', fontSize: '0.8rem', color: 'var(--text-color-light)' }}>Configurar para:</label>
                             <input 
                                 type="month" 
                                 value={roomsMonth}
                                 onChange={(e) => setRoomsMonth(e.target.value)}
-                                style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', outline: 'none' }}
+                                style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '0.8rem', outline: 'none', maxWidth: '100%' }}
                             />
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-color-light)', fontStyle: 'italic' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-color-light)', fontStyle: 'italic', width: '100%' }}>
                                 {roomsMonth ? 'Configuración específica para este mes' : 'Configuración global por defecto'}
                             </span>
                         </div>
                     </div>
                     
-                    <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginBottom: '16px' }}>
                         {Object.entries({ main: "Auditorio Principal", aux2: "Sala 2", aux3: "Sala 3" }).map(([key, label]) => (
-                            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '1rem', fontWeight: '600' }}>
+                            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>
                                 <input 
                                     type="checkbox" 
                                     checked={enabledRooms[key as keyof typeof enabledRooms]} 
                                     onChange={e => setEnabledRooms(prev => ({ ...prev, [key]: e.target.checked }))}
                                     disabled={key === 'main' || isReadOnly}
-                                    style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }}
+                                    style={{ width: '18px', height: '18px', accentColor: 'var(--primary-color)' }}
                                 />
                                 {label}
                             </label>
                         ))}
                     </div>
-                    <button onClick={saveGeneralSettings} disabled={loadingSettings || isReadOnly} className="button-save" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button onClick={saveGeneralSettings} disabled={loadingSettings || isReadOnly} className="button-save" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.85rem', padding: '10px 16px', width: '100%', maxWidth: '280px' }}>
                         {loadingSettings ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
                         Guardar Configuración de Salas
                     </button>
                 </div>
             )}
 
+            {/* Alarmas y Recordatorios de Asistencia (Android, iOS y Web) */}
+            {!isReadOnly && (
+                <div style={{ backgroundColor: 'var(--card-bg-color)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', marginBottom: '16px', boxShadow: 'var(--shadow-md)', boxSizing: 'border-box', width: '100%' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '8px' }}>
+                        <h3 style={{ margin: 0, color: '#4f46e5', fontSize: '0.95rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <i className="fas fa-bell"></i> Alarmas de Asistencia (Móvil y Web)
+                        </h3>
+                        <span style={{ 
+                            fontSize: '0.7rem', 
+                            fontWeight: '700', 
+                            padding: '3px 8px', 
+                            borderRadius: '16px', 
+                            whiteSpace: 'nowrap',
+                            backgroundColor: attendanceAlarms.enabled ? '#dcfce7' : '#fee2e2', 
+                            color: attendanceAlarms.enabled ? '#166534' : '#991b1b' 
+                        }}>
+                            {attendanceAlarms.enabled ? '● Alarmas activadas' : '○ Desactivadas'}
+                        </span>
+                    </div>
+
+                    <p style={{ margin: '0 0 14px 0', fontSize: '0.78rem', color: 'var(--text-color-light)', lineHeight: '1.4' }}>
+                        Si en la semana actual no hay registro de asistencia, la app alertará en los días y horas indicados.
+                    </p>
+
+                    {/* Activar / Desactivar Toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', padding: '10px 12px', backgroundColor: 'var(--bg-color)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                        <input 
+                            type="checkbox"
+                            id="enable_attendance_alarms_check"
+                            checked={attendanceAlarms.enabled}
+                            onChange={e => setAttendanceAlarms(prev => ({ ...prev, enabled: e.target.checked }))}
+                            style={{ width: '16px', height: '16px', accentColor: '#4f46e5', cursor: 'pointer', flexShrink: 0 }}
+                        />
+                        <label htmlFor="enable_attendance_alarms_check" style={{ cursor: 'pointer', fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-color)' }}>
+                            Activar notificaciones y alarmas automáticas
+                        </label>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+                        {/* Configuración Entre Semana */}
+                        <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
+                            <div style={{ fontWeight: '800', fontSize: '0.82rem', color: '#4f46e5', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <i className="fas fa-calendar-day"></i> Recordatorio Entre Semana
+                            </div>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-color-light)', display: 'block', marginBottom: '3px' }}>
+                                        Día de recordatorio:
+                                    </label>
+                                    <select
+                                        value={attendanceAlarms.midweek_day}
+                                        onChange={e => setAttendanceAlarms(prev => ({ ...prev, midweek_day: Number(e.target.value) }))}
+                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--card-bg-color)', color: 'var(--text-color)', fontSize: '0.8rem', fontWeight: '600' }}
+                                    >
+                                        {DAYS_OF_WEEK.map(d => (
+                                            <option key={d.value} value={d.value}>{d.label} {d.value === 5 ? '(Predeterminado)' : ''}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-color-light)', display: 'block', marginBottom: '3px' }}>
+                                        Hora (Predeterminada 9:00 PM):
+                                    </label>
+                                    <input 
+                                        type="time"
+                                        value={attendanceAlarms.midweek_time}
+                                        onChange={e => setAttendanceAlarms(prev => ({ ...prev, midweek_time: e.target.value }))}
+                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--card-bg-color)', color: 'var(--text-color)', fontSize: '0.8rem', fontWeight: '600' }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Configuración Fin de Semana */}
+                        <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: 'var(--bg-color)', border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
+                            <div style={{ fontWeight: '800', fontSize: '0.82rem', color: '#059669', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <i className="fas fa-calendar-check"></i> Recordatorio Fin de Semana
+                            </div>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-color-light)', display: 'block', marginBottom: '3px' }}>
+                                        Día de recordatorio:
+                                    </label>
+                                    <select
+                                        value={attendanceAlarms.weekend_day}
+                                        onChange={e => setAttendanceAlarms(prev => ({ ...prev, weekend_day: Number(e.target.value) }))}
+                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--card-bg-color)', color: 'var(--text-color)', fontSize: '0.8rem', fontWeight: '600' }}
+                                    >
+                                        {DAYS_OF_WEEK.map(d => (
+                                            <option key={d.value} value={d.value}>{d.label} {d.value === 0 ? '(Predeterminado)' : ''}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-color-light)', display: 'block', marginBottom: '3px' }}>
+                                        Hora (Predeterminada 8:30 PM):
+                                    </label>
+                                    <input 
+                                        type="time"
+                                        value={attendanceAlarms.weekend_time}
+                                        onChange={e => setAttendanceAlarms(prev => ({ ...prev, weekend_time: e.target.value }))}
+                                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--card-bg-color)', color: 'var(--text-color)', fontSize: '0.8rem', fontWeight: '600' }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', width: '100%' }}>
+                            <button
+                                type="button"
+                                onClick={() => playAttendanceAlarmSound()}
+                                style={{ flex: '1 1 auto', minWidth: '130px', padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                            >
+                                <i className="fas fa-volume-up text-indigo-500"></i> Probar Sonido
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const granted = await requestAppNotificationPermission();
+                                    if (granted) {
+                                        alert('¡Permiso de notificaciones activado!');
+                                    } else {
+                                        alert('Permisos no habilitados.');
+                                    }
+                                }}
+                                style={{ flex: '1 1 auto', minWidth: '130px', padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-color)', color: 'var(--text-color)', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                            >
+                                <i className="fas fa-mobile-alt text-indigo-500"></i> Permiso Celular
+                            </button>
+                        </div>
+
+                        <button 
+                            onClick={saveAttendanceAlarmSettings} 
+                            disabled={loadingAlarmSettings || isReadOnly} 
+                            className="button-save" 
+                            style={{ width: '100%', marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: '#4f46e5', fontSize: '0.82rem', padding: '9px 14px' }}
+                        >
+                            {loadingAlarmSettings ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
+                            Guardar Horarios de Alarmas
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Conceptos y Estados personalizados */}
             {!isReadOnly && (
-                <div style={{ backgroundColor: 'var(--card-bg-color)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-color)', marginBottom: '30px', boxShadow: 'var(--shadow-md)' }}>
-                    <h3 style={{ marginTop: 0, marginBottom: '8px', color: '#a855f7', fontSize: '1.2rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <i className="fas fa-tags"></i> Conceptos y Estados de Grupo Personalizados
+                <div style={{ backgroundColor: 'var(--card-bg-color)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', marginBottom: '16px', boxShadow: 'var(--shadow-md)', boxSizing: 'border-box', width: '100%' }}>
+                    <h3 style={{ marginTop: 0, marginBottom: '6px', color: '#a855f7', fontSize: '0.95rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <i className="fas fa-tags"></i> Conceptos y Estados de Grupo
                     </h3>
-                    <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: 'var(--text-color-light)' }}>
-                        Administra de manera centralizada las etiquetas personalizadas para los publicadores de tu congregación. Al editar o eliminar una etiqueta, esta se actualizará automáticamente en los miembros asignados.
+                    <p style={{ margin: '0 0 12px 0', fontSize: '0.78rem', color: 'var(--text-color-light)', lineHeight: '1.4' }}>
+                        Administra las etiquetas de los publicadores. Al editar o eliminar una etiqueta, se actualizará en todos los miembros.
                     </p>
 
                     {/* Agregar nuevo concepto */}
-                    <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
                         <input
                             type="text"
                             value={conceptInput}
                             onChange={e => setConceptInput(e.target.value)}
-                            placeholder="Escribir nuevo concepto (ej. No bautizado, Apoyo, etc.)..."
+                            placeholder="Nuevo concepto (ej. No bautizado)..."
                             onKeyDown={e => {
                                 if (e.key === 'Enter') {
                                     e.preventDefault();
@@ -545,46 +763,48 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
                                 }
                             }}
                             style={{
-                                flex: 1,
-                                padding: '10px 14px',
-                                borderRadius: '10px',
+                                flex: '1 1 180px',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
                                 border: '1px solid var(--border-color)',
                                 backgroundColor: 'var(--bg-color)',
                                 color: 'var(--text-color)',
-                                fontSize: '0.9rem',
-                                outline: 'none'
+                                fontSize: '0.82rem',
+                                outline: 'none',
+                                boxSizing: 'border-box'
                              }}
                         />
                         <button
                             onClick={handleAddConcept}
                             disabled={savingConcepts || !conceptInput.trim()}
                             style={{
-                                padding: '10px 20px',
+                                padding: '8px 14px',
                                 backgroundColor: '#a855f7',
                                 color: 'white',
                                 border: 'none',
-                                borderRadius: '10px',
+                                borderRadius: '8px',
                                 fontWeight: '700',
-                                fontSize: '0.9rem',
+                                fontSize: '0.82rem',
                                 cursor: !conceptInput.trim() || savingConcepts ? 'not-allowed' : 'pointer',
                                 opacity: !conceptInput.trim() || savingConcepts ? 0.6 : 1,
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px'
+                                gap: '5px',
+                                flexShrink: 0
                             }}
                         >
                             {savingConcepts ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-plus"></i>}
-                            Agregar Concepto
+                            Agregar
                         </button>
                     </div>
 
                     {/* Listado de conceptos */}
                     <div>
-                        <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: '800', color: 'var(--text-color-light)', textTransform: 'uppercase', marginBottom: '10px' }}>
-                            Etiquetas sugeridas activas
+                        <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-color-light)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                            Etiquetas activas
                         </span>
                         
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {(currentCongregation?.settings?.custom_concepts || ['Inactivo', 'No bautizado', 'Otras ovejas', 'Ungido', 'Apoyo']).map((concept, index) => {
                                 const isEditing = editingConceptIndex === index;
                                 return (
@@ -595,13 +815,14 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
                                             justifyContent: 'space-between',
                                             alignItems: 'center',
                                             backgroundColor: 'var(--bg-color)',
-                                            padding: '10px 16px',
-                                            borderRadius: '10px',
+                                            padding: '8px 12px',
+                                            borderRadius: '8px',
                                             border: '1px solid var(--border-color)',
+                                            gap: '8px'
                                         }}
                                     >
                                         {isEditing ? (
-                                            <div style={{ display: 'flex', gap: '8px', flex: 1, marginRight: '10px' }}>
+                                            <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
                                                 <input
                                                     type="text"
                                                     value={editingConceptValue}
@@ -617,34 +838,34 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
                                                     autoFocus
                                                     style={{
                                                         flex: 1,
-                                                        padding: '4px 10px',
+                                                        padding: '4px 8px',
                                                         borderRadius: '6px',
                                                         border: '1px solid #c084fc',
                                                         backgroundColor: 'var(--card-bg-color)',
                                                         color: 'var(--text-color)',
                                                         outline: 'none',
-                                                        fontSize: '0.85rem'
+                                                        fontSize: '0.8rem'
                                                     }}
                                                 />
                                                 <button
                                                     onClick={() => handleEditConcept(index)}
-                                                    style={{ border: 'none', background: '#10b981', color: 'white', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                                                    style={{ border: 'none', background: '#10b981', color: 'white', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
                                                 >
                                                     Guardar
                                                 </button>
                                                 <button
                                                     onClick={() => setEditingConceptIndex(null)}
-                                                    style={{ border: 'none', background: '#64748b', color: 'white', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                                                    style={{ border: 'none', background: '#64748b', color: 'white', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
                                                 >
-                                                    Cancelar
+                                                    ✕
                                                 </button>
                                             </div>
                                         ) : (
                                             <>
-                                                <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-color)' }}>
+                                                <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-color)', wordBreak: 'break-word' }}>
                                                     {concept}
                                                 </span>
-                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                                     <button
                                                         onClick={() => {
                                                             setEditingConceptIndex(index);
@@ -654,17 +875,17 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
                                                             border: 'none',
                                                             background: '#faf5ff',
                                                             color: '#a855f7',
-                                                            padding: '6px 12px',
+                                                            padding: '5px 8px',
                                                             borderRadius: '6px',
-                                                            fontSize: '0.8rem',
+                                                            fontSize: '0.75rem',
                                                             fontWeight: '600',
                                                             cursor: 'pointer',
                                                             display: 'flex',
                                                             alignItems: 'center',
-                                                            gap: '4px'
+                                                            gap: '3px'
                                                         }}
                                                     >
-                                                        <i className="fas fa-edit"></i> Editar
+                                                        <i className="fas fa-edit"></i>
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteConcept(index)}
@@ -672,17 +893,17 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
                                                             border: 'none',
                                                             background: '#fff5f5',
                                                             color: '#e53e3e',
-                                                            padding: '6px 12px',
+                                                            padding: '5px 8px',
                                                             borderRadius: '6px',
-                                                            fontSize: '0.8rem',
+                                                            fontSize: '0.75rem',
                                                             fontWeight: '600',
                                                             cursor: 'pointer',
                                                             display: 'flex',
                                                             alignItems: 'center',
-                                                            gap: '4px'
+                                                            gap: '3px'
                                                         }}
                                                     >
-                                                        <i className="fas fa-trash"></i> Eliminar
+                                                        <i className="fas fa-trash"></i>
                                                     </button>
                                                 </div>
                                             </>
@@ -697,47 +918,47 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
 
             {/* Formulario de Llaves/Contraseñas */}
             {!isReadOnly && (
-                <div style={{ backgroundColor: 'var(--card-bg-color)', padding: '24px', borderRadius: '16px', border: editingId ? '2px solid var(--primary-color)' : '1px solid var(--border-color)', marginBottom: '30px', boxShadow: 'var(--shadow-lg)' }}>
-                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                        <h3 style={{ margin: 0, color: 'var(--primary-color)', fontSize: '1.2rem', fontWeight: '800' }}>
-                            {editingId ? <><i className="fas fa-edit mr-2"></i>Editar Acceso</> : <><i className="fas fa-key mr-2"></i>Crear Nuevo Acceso</>}
+                <div style={{ backgroundColor: 'var(--card-bg-color)', padding: '16px', borderRadius: '16px', border: editingId ? '2px solid var(--primary-color)' : '1px solid var(--border-color)', marginBottom: '20px', boxShadow: 'var(--shadow-md)', boxSizing: 'border-box', width: '100%' }}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px'}}>
+                        <h3 style={{ margin: 0, color: 'var(--primary-color)', fontSize: '0.95rem', fontWeight: '800' }}>
+                            {editingId ? <><i className="fas fa-edit mr-1"></i>Editar Acceso</> : <><i className="fas fa-key mr-1"></i>Crear Nuevo Acceso</>}
                         </h3>
                         {editingId && getStatusBadge()}
                     </div>
                     
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '25px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
                         <div>
-                            <label style={{ display: 'block', fontWeight: '700', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>Nombre del Perfil</label>
-                            <input type="text" value={label} onChange={e => setLabel(e.target.value)} placeholder="Ej: Grupo 1, Ancianos, etc." />
+                            <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px', fontSize: '0.75rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>Nombre del Perfil</label>
+                            <input type="text" value={label} onChange={e => setLabel(e.target.value)} placeholder="Ej: Grupo 1, Ancianos..." style={{ fontSize: '0.82rem', padding: '8px 10px', width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         <div>
-                            <label style={{ display: 'block', fontWeight: '700', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>Nombre del Responsable</label>
-                            <input type="text" value={responsible} onChange={e => setResponsible(e.target.value)} placeholder="Ej: Hno. Pérez" />
+                            <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px', fontSize: '0.75rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>Responsable</label>
+                            <input type="text" value={responsible} onChange={e => setResponsible(e.target.value)} placeholder="Ej: Hno. Pérez" style={{ fontSize: '0.82rem', padding: '8px 10px', width: '100%', boxSizing: 'border-box' }} />
                         </div>
                         
                         <div>
-                            <label style={{ display: 'block', fontWeight: '700', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>Contraseña de Acceso (Opcional)</label>
+                            <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px', fontSize: '0.75rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>Contraseña (Opcional)</label>
                             <div style={{ position: 'relative' }}>
                                 <input 
                                     type={showPasswordInput ? "text" : "password"} 
                                     value={password} 
                                     onChange={e => setPassword(e.target.value)} 
-                                    placeholder="Dejar en blanco para autogenerar" 
-                                    style={{ fontFamily: 'monospace', letterSpacing: '1px', fontWeight: 'bold', width: '100%', paddingRight: '40px' }}
+                                    placeholder="En blanco = auto" 
+                                    style={{ fontFamily: 'monospace', fontSize: '0.82rem', letterSpacing: '1px', fontWeight: 'bold', width: '100%', padding: '8px 36px 8px 10px', boxSizing: 'border-box' }}
                                 />
                                 <button 
                                     type="button"
                                     onClick={() => setShowPasswordInput(!showPasswordInput)}
                                     style={{
                                         position: 'absolute',
-                                        right: '10px',
+                                        right: '8px',
                                         top: '50%',
                                         transform: 'translateY(-50%)',
                                         background: 'none',
                                         border: 'none',
                                         color: '#64748b',
                                         cursor: 'pointer',
-                                        fontSize: '1rem'
+                                        fontSize: '0.85rem'
                                     }}
                                 >
                                     <i className={`fas ${showPasswordInput ? 'fa-eye-slash' : 'fa-eye'}`}></i>
@@ -746,19 +967,19 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
                         </div>
 
                         <div>
-                            <label style={{ display: 'block', fontWeight: '700', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>Restringir a Grupo (Opcional)</label>
-                            <select value={restrictedGroupId} onChange={e => setRestrictedGroupId(e.target.value)}>
+                            <label style={{ display: 'block', fontWeight: '700', marginBottom: '4px', fontSize: '0.75rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>Restringir a Grupo (Opcional)</label>
+                            <select value={restrictedGroupId} onChange={e => setRestrictedGroupId(e.target.value)} style={{ fontSize: '0.82rem', padding: '8px 10px', width: '100%', boxSizing: 'border-box' }}>
                                 <option value="">-- Sin restricción (Todos) --</option>
                                 {groups.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
                             </select>
                         </div>
                     </div>
 
-                    <div style={{ marginBottom: '25px' }}>
-                        <label style={{ display: 'block', fontWeight: '700', marginBottom: '12px', fontSize: '0.85rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>
-                            Permisos de Pestañas (Clic para alternar: <i className="fas fa-eye text-blue-500"></i> Solo Ver → <i className="fas fa-edit text-green-500"></i> Edición → Desactivar)
+                    <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', fontWeight: '700', marginBottom: '8px', fontSize: '0.75rem', color: 'var(--text-color-light)', textTransform: 'uppercase' }}>
+                            Permisos (<i className="fas fa-eye text-blue-500"></i> Ver → <i className="fas fa-edit text-green-500"></i> Edición → Quitar)
                         </label>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                             {ALL_TABS.map(tab => {
                                 const perm = selectedTabs.find(t => t.name === tab);
                                 const isActive = !!perm;
@@ -767,22 +988,24 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
                                 return (
                                     <button
                                         key={tab}
+                                        type="button"
                                         onClick={() => toggleTab(tab)}
                                         style={{
-                                            padding: '8px 16px',
-                                            borderRadius: '30px',
-                                            border: isActive ? (isEdit ? '2px solid #10b981' : '2px solid #3b82f6') : '1px solid var(--border-color)',
+                                            padding: '6px 12px',
+                                            borderRadius: '20px',
+                                            border: isActive ? (isEdit ? '1.5px solid #10b981' : '1.5px solid #3b82f6') : '1px solid var(--border-color)',
                                             backgroundColor: isActive ? (isEdit ? '#dcfce7' : '#dbeafe') : 'transparent',
                                             color: isActive ? (isEdit ? '#065f46' : '#1e40af') : 'var(--text-color-light)',
                                             fontWeight: isActive ? '800' : '500',
+                                            fontSize: '0.75rem',
                                             cursor: 'pointer',
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: '6px',
+                                            gap: '4px',
                                             transition: 'all 0.2s'
                                         }}
                                     >
-                                        {isActive && <i className={`fas ${isEdit ? 'fa-edit' : 'fa-eye'}`}></i>}
+                                        {isActive && <i className={`fas ${isEdit ? 'fa-edit' : 'fa-eye'}`} style={{ fontSize: '0.7rem' }}></i>}
                                         <span>{tab}</span>
                                     </button>
                                 );
@@ -790,15 +1013,15 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '12px' }}>
+                    <div style={{ display: 'flex', gap: '10px' }}>
                         {!editingId && (
-                            <button onClick={handleCreateAccess} className="button-save" style={{ flex: 1, padding: '15px' }}>
-                                <i className="fas fa-plus mr-2"></i> Crear Acceso
+                            <button onClick={handleCreateAccess} className="button-save" style={{ flex: 1, padding: '10px', fontSize: '0.85rem' }}>
+                                <i className="fas fa-plus mr-1"></i> Crear Acceso
                             </button>
                         )}
                         {editingId && (
-                            <button onClick={resetForm} className="button" style={{ background: '#64748b', color: 'white', flex: 1 }}>
-                                <i className="fas fa-check mr-2"></i> Terminar Edición
+                            <button onClick={resetForm} className="button" style={{ background: '#64748b', color: 'white', flex: 1, padding: '10px', fontSize: '0.85rem' }}>
+                                <i className="fas fa-check mr-1"></i> Terminar Edición
                             </button>
                         )}
                     </div>
@@ -806,30 +1029,30 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
             )}
 
             {/* Listado de Llaves */}
-            <h2 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '800', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <i className="fas fa-users-cog color-primary"></i>Accesos Generados
             </h2>
             
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-                {loading ? <p>Cargando...</p> : configs.map(config => (
-                    <div key={config.id} style={{ backgroundColor: 'var(--card-bg-color)', borderRadius: '16px', padding: '20px', border: editingId === config.id ? '2px solid var(--primary-color)' : '1px solid var(--border-color)', boxShadow: 'var(--shadow-md)', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                            <div style={{ flex: 1 }}>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: 'var(--text-color)' }}>{config.label}</h3>
-                                <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem', color: 'var(--text-color-light)', fontWeight: '600' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px' }}>
+                {loading ? <p style={{ fontSize: '0.85rem' }}>Cargando...</p> : configs.map(config => (
+                    <div key={config.id} style={{ backgroundColor: 'var(--card-bg-color)', borderRadius: '14px', padding: '14px', border: editingId === config.id ? '2px solid var(--primary-color)' : '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-color)', wordBreak: 'break-word' }}>{config.label}</h3>
+                                <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: 'var(--text-color-light)', fontWeight: '600' }}>
                                     <i className="fas fa-user-circle mr-1"></i>{config.responsible_name}
                                 </p>
                             </div>
                             {!isReadOnly && (
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button onClick={() => handleEditClick(config)} style={{ border: 'none', background: '#eff6ff', color: '#2563eb', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}><i className="fas fa-pen"></i></button>
-                                    <button onClick={() => handleDelete(config.id)} style={{ border: 'none', background: '#fef2f2', color: '#ef4444', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}><i className="fas fa-trash"></i></button>
+                                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                    <button onClick={() => handleEditClick(config)} style={{ border: 'none', background: '#eff6ff', color: '#2563eb', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}><i className="fas fa-pen"></i></button>
+                                    <button onClick={() => handleDelete(config.id)} style={{ border: 'none', background: '#fef2f2', color: '#ef4444', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}><i className="fas fa-trash"></i></button>
                                 </div>
                             )}
                         </div>
 
-                        <div style={{ backgroundColor: '#f0f9ff', padding: '12px', borderRadius: '12px', margin: '0 0 15px 0', border: '1px solid #bae6fd', textAlign:'center' }}>
-                            <div style={{ fontSize: '0.75rem', fontWeight: '800', color: '#0284c7', textTransform: 'uppercase', marginBottom: '4px' }}>
+                        <div style={{ backgroundColor: '#f0f9ff', padding: '8px 10px', borderRadius: '10px', margin: '0 0 10px 0', border: '1px solid #bae6fd', textAlign:'center' }}>
+                            <div style={{ fontSize: '0.68rem', fontWeight: '800', color: '#0284c7', textTransform: 'uppercase', marginBottom: '2px' }}>
                                 {config.access_token.startsWith('tk_') ? 'ENLACE DIRECTO' : 'CONTRASEÑA'}
                             </div>
                             
@@ -842,33 +1065,33 @@ const ConfiguracionAcceso: React.FC<ConfiguracionAccesoProps> = ({ onSimulate, i
                                         setTimeout(() => setStatusMessage(null), 2000);
                                     }}
                                     style={{
-                                        border: 'none', background: '#0284c7', color: 'white', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '8px'
+                                        border: 'none', background: '#0284c7', color: 'white', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px'
                                     }}
                                 >
                                     <i className="fas fa-link"></i> Copiar Enlace
                                 </button>
                             ) : (
-                                <div style={{ fontSize: '1.2rem', fontWeight: '900', color: '#0c4a6e', fontFamily:'monospace', letterSpacing:'4px' }}>
+                                <div style={{ fontSize: '1rem', fontWeight: '900', color: '#0c4a6e', fontFamily:'monospace', letterSpacing:'3px' }}>
                                     {isSuperAdmin ? config.access_token : '••••••'}
                                 </div>
                             )}
                         </div>
 
-                        <div style={{ backgroundColor: 'var(--bg-color)', padding: '12px', borderRadius: '12px', marginBottom: '15px', flex: 1 }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: '800', color: 'var(--text-color-light)', textTransform: 'uppercase', marginBottom: '8px' }}>Pestañas y Acceso:</div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                        <div style={{ backgroundColor: 'var(--bg-color)', padding: '10px', borderRadius: '10px', marginBottom: '10px', flex: 1 }}>
+                            <div style={{ fontSize: '0.68rem', fontWeight: '800', color: 'var(--text-color-light)', textTransform: 'uppercase', marginBottom: '6px' }}>Pestañas:</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                 {config.visible_tabs.map(t => (
-                                    <span key={t.name} style={{ fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', backgroundColor: t.access === 'edit' ? '#dcfce7' : '#f1f5f9', color: t.access === 'edit' ? '#059669' : '#64748b', border: `1px solid ${t.access === 'edit' ? '#10b981' : '#e2e8f0'}`, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                        <i className={`fas ${t.access === 'edit' ? 'fa-pen' : 'fa-eye'}`} style={{ fontSize: '0.6rem' }}></i> {t.name}
+                                    <span key={t.name} style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '5px', backgroundColor: t.access === 'edit' ? '#dcfce7' : '#f1f5f9', color: t.access === 'edit' ? '#059669' : '#64748b', border: `1px solid ${t.access === 'edit' ? '#10b981' : '#e2e8f0'}`, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                        <i className={`fas ${t.access === 'edit' ? 'fa-pen' : 'fa-eye'}`} style={{ fontSize: '0.55rem' }}></i> {t.name}
                                     </span>
                                 ))}
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '10px' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
                             <button 
                                 onClick={() => handleTestClick(config)}
-                                style={{ flex: 1, backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '10px', padding: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                style={{ flex: 1, backgroundColor: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '8px', padding: '9px', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
                                 <i className="fas fa-sign-in-alt"></i> Probar Acceso
                             </button>

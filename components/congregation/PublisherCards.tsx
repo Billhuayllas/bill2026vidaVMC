@@ -15,7 +15,8 @@ import {
     Check, 
     SlidersHorizontal,
     Award,
-    CalendarDays
+    CalendarDays,
+    ChevronDown
 } from 'lucide-react';
 import { GroupMember, Publisher } from './types';
 import { supabase } from '../../lib/supabase';
@@ -25,6 +26,15 @@ import { cleanNotes, isReportAuxiliar } from './utils';
 import { BulkCardsModal } from './BulkCardsModal';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
 import { printHtmlDocument, downloadHtmlAsPdf } from './printUtils';
+import { 
+    generateCardPagesArray, 
+    fetchReportsForServiceYear, 
+    S21Config, 
+    getSavedS21Config, 
+    saveS21Config, 
+    resetS21Config 
+} from './s21CardGenerator';
+import { S21ConfigDrawer } from './S21ConfigDrawer';
 
 declare const html2pdf: any;
 
@@ -345,9 +355,10 @@ interface PublisherCardsProps {
     groups?: any[];
     onRefresh?: () => void;
     isReadOnly?: boolean;
+    onCardOpenChange?: (isOpen: boolean) => void;
 }
 
-const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globalMembers, updatePublisherDetails, updateMemberRole, groups = [], onRefresh, isReadOnly = false }) => {
+const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globalMembers, updatePublisherDetails, updateMemberRole, groups = [], onRefresh, isReadOnly = false, onCardOpenChange }) => {
     const { currentCongregation } = useCongregation();
     const [selectedPublisher, setSelectedPublisher] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -356,7 +367,8 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
     
     useEffect(() => {
         setSearchQuery(selectedPublisher);
-    }, [selectedPublisher]);
+        onCardOpenChange?.(!!selectedPublisher);
+    }, [selectedPublisher, onCardOpenChange]);
 
     useEffect(() => {
         if (selectedGroupId && selectedGroupId !== 'todos') {
@@ -385,7 +397,19 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
     const [fetchedPublisher, setFetchedPublisher] = useState('');
     const [isEditMode, setIsEditMode] = useState(false);
     const [showBulkModal, setShowBulkModal] = useState(false);
+    const [showActionsMenu, setShowActionsMenu] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
+    const actionsMenuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) {
+                setShowActionsMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleDownloadPng = async () => {
         if (!cardRef.current) return;
@@ -409,28 +433,12 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
     };
 
     const handleDownloadPdf = async () => {
-        if (!cardRef.current) return;
+        if (!selectedPublisher) return;
         try {
-            if (typeof html2pdf !== 'undefined') {
-                const element = cardRef.current;
-                const opt = {
-                    margin: [10, 10, 10, 10],
-                    filename: `Registro_${selectedPublisher}_${serviceYear}.pdf`,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { 
-                        scale: 2, 
-                        useCORS: true, 
-                        logging: false,
-                        ignoreElements: (el: HTMLElement) => {
-                            return el.classList.contains('no-print') || el.getAttribute('data-html2canvas-ignore') === 'true';
-                        }
-                    },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                };
-                await html2pdf().from(element).set(opt).save();
-            } else {
-                window.print();
-            }
+            const reportsData = await fetchReportsForServiceYear(serviceYear, currentCongregation?.id);
+            const activePub = pubDetails || { nombre: selectedPublisher };
+            const pages = generateCardPagesArray([activePub], reportsData || [], globalMembers, '2', serviceYear);
+            await downloadHtmlAsPdf(pages.join(''), `Registro_${selectedPublisher}_${serviceYear}.pdf`);
         } catch (error) {
             console.error('Error generating PDF:', error);
             window.print();
@@ -442,6 +450,9 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
     const defaultServiceYear = currentMonthIndex >= 9 ? new Date().getFullYear() + 1 : new Date().getFullYear();
     const [serviceYear, setServiceYear] = useState<number>(defaultServiceYear);
 
+    const [showParamDrawer, setShowParamDrawer] = useState<boolean>(false);
+    const [s21Config, setS21Config] = useState<S21Config>(() => getSavedS21Config(true));
+
     const [previewModalData, setPreviewModalData] = useState<{
         isOpen: boolean;
         pages: string[];
@@ -450,21 +461,29 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
         layoutLabel?: string;
     } | null>(null);
 
-    const handlePreviewCardPdf = () => {
-        if (!cardRef.current) return;
-        const contentHtml = cardRef.current.innerHTML;
-        const pageHtml = `
-            <div class="s21-card-page" style="width: 794px; min-height: 1080px; margin: 0 auto; background: #ffffff; color: #000000; padding: 24px 28px; box-sizing: border-box; font-family: Arial, Helvetica, sans-serif;">
-                ${contentHtml}
-            </div>
-        `;
-        setPreviewModalData({
-            isOpen: true,
-            pages: [pageHtml],
-            title: `Registro de Publicador S-21 - ${pubDetails?.nombre || selectedPublisher}`,
-            fileName: `Registro_${selectedPublisher}_${serviceYear}.pdf`,
-            layoutLabel: 'Ficha Individual'
-        });
+    const handleRegeneratePreviewPages = async (customConfig: S21Config) => {
+        if (!selectedPublisher) return [];
+        const reportsData = await fetchReportsForServiceYear(serviceYear, currentCongregation?.id);
+        const activePub = pubDetails || { nombre: selectedPublisher };
+        return generateCardPagesArray([activePub], reportsData || [], globalMembers, '2', serviceYear, customConfig);
+    };
+
+    const handlePreviewCardPdf = async () => {
+        if (!selectedPublisher) return;
+        try {
+            const reportsData = await fetchReportsForServiceYear(serviceYear, currentCongregation?.id);
+            const activePub = pubDetails || { nombre: selectedPublisher };
+            const pages = generateCardPagesArray([activePub], reportsData || [], globalMembers, '2', serviceYear, s21Config);
+            setPreviewModalData({
+                isOpen: true,
+                pages: pages,
+                title: `Registro de Publicador S-21 - ${pubDetails?.nombre || selectedPublisher}`,
+                fileName: `Registro_${selectedPublisher}_${serviceYear}.pdf`,
+                layoutLabel: 'Formato Oficial S-21 (2 en 1)'
+            });
+        } catch (e) {
+            console.error("Error previewing PDF:", e);
+        }
     };
 
     // Helpers to support DD/MM/AAAA format conversion for display
@@ -732,18 +751,18 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
     }, [selectedPublisher]);
 
     const months = [
-        { key: '09', name: 'septiembre' },
-        { key: '10', name: 'octubre' },
-        { key: '11', name: 'noviembre' },
-        { key: '12', name: 'diciembre' },
-        { key: '01', name: 'enero' },
-        { key: '02', name: 'febrero' },
-        { key: '03', name: 'marzo' },
-        { key: '04', name: 'abril' },
-        { key: '05', name: 'mayo' },
-        { key: '06', name: 'junio' },
-        { key: '07', name: 'julio' },
-        { key: '08', name: 'agosto' },
+        { key: '09', name: 'Septiembre' },
+        { key: '10', name: 'Octubre' },
+        { key: '11', name: 'Noviembre' },
+        { key: '12', name: 'Diciembre' },
+        { key: '01', name: 'Enero' },
+        { key: '02', name: 'Febrero' },
+        { key: '03', name: 'Marzo' },
+        { key: '04', name: 'Abril' },
+        { key: '05', name: 'Mayo' },
+        { key: '06', name: 'Junio' },
+        { key: '07', name: 'Julio' },
+        { key: '08', name: 'Agosto' },
     ];
 
     const pubDetails = masterPublishers.find(p => p.nombre.trim() === selectedPublisher.trim());
@@ -1056,141 +1075,160 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                 }
             `}</style>
             
-            {/* Control Dashboard Header Panel */}
-            <div className="sticky top-[52px] sm:top-[58px] z-20 mb-5 shadow-md md:shadow-none no-print" style={{ display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: 'white', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                    <div>
-                        <h2 style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            📁 Ficha de Publicador
-                        </h2>
-                    </div>
-                    {selectedPublisher && pubDetails && (
-                        <div className="flex flex-col gap-3 w-full lg:w-auto mt-2 sm:mt-0">
-                            {/* Functional Group 1: Navigation & Edits */}
-                            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
+            {/* Control Dashboard Header Panel - Ultra Compact Single Row */}
+            <div className="sticky top-[52px] sm:top-[58px] z-20 mb-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 sm:p-2.5 shadow-sm no-print">
+                <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap w-full">
+                    {selectedPublisher && pubDetails ? (
+                        <div className="flex items-center gap-1.5 flex-wrap w-full">
+                            {/* Volver */}
+                            <button
+                                onClick={() => {
+                                    setSelectedPublisher('');
+                                    setSearchQuery('');
+                                }}
+                                className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg font-bold text-xs transition-colors whitespace-nowrap active:scale-95 cursor-pointer shrink-0"
+                            >
+                                <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+                                <span>Volver</span>
+                            </button>
+
+                            {/* Modo Edición / Ver Ficha */}
+                            {!isReadOnly && (
                                 <button
                                     onClick={() => {
-                                        setSelectedPublisher('');
-                                        setSearchQuery('');
-                                    }}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl font-bold text-xs sm:text-sm transition-colors whitespace-nowrap active:scale-95 cursor-pointer"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                                    <span>Volver</span>
-                                </button>
-                                {!isReadOnly && (
-                                    <button
-                                        onClick={() => {
-                                            if (isEditMode) {
-                                                setIsEditMode(false);
-                                            } else {
-                                                const code = prompt('Ingrese la contraseña para edición (9803):');
-                                                if (code === '9803') {
-                                                    setIsEditMode(true);
-                                                } else if (code !== null) {
-                                                    alert('Contraseña incorrecta');
-                                                }
+                                        if (isEditMode) {
+                                            setIsEditMode(false);
+                                        } else {
+                                            const code = prompt('Ingrese la contraseña para edición (9803):');
+                                            if (code === '9803') {
+                                                setIsEditMode(true);
+                                            } else if (code !== null) {
+                                                alert('Contraseña incorrecta');
                                             }
-                                        }}
-                                        className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 text-white rounded-xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap active:scale-95 cursor-pointer border ${isEditMode ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-700 shadow-emerald-600/30' : 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-600 shadow-amber-500/25'}`}
-                                    >
-                                        {isEditMode ? (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4"><polyline points="22 11.08 11.68 22 7.23 17.54"></polyline><path d="M22 4L12 14.01l-3-3"></path></svg>
-                                                <span>Ver Ficha</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                                <span>Modo Edición</span>
-                                            </>
-                                        )}
-                                    </button>
+                                        }
+                                    }}
+                                    className={`flex items-center justify-center gap-1 px-2.5 py-1.5 text-white rounded-lg font-bold text-xs transition-all whitespace-nowrap active:scale-95 cursor-pointer border shrink-0 ${isEditMode ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-700 shadow-xs' : 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-600 shadow-xs'}`}
+                                >
+                                    {isEditMode ? (
+                                        <>
+                                            <Check className="w-3.5 h-3.5 shrink-0" />
+                                            <span>Ver Ficha</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                                            <span>Edición</span>
+                                        </>
+                                    )}
+                                </button>
+                            )}
+
+                            {/* Menú de Acciones y Descargas en Lista Desplegable */}
+                            <div className="relative inline-block shrink-0" ref={actionsMenuRef}>
+                                <button
+                                    onClick={() => setShowActionsMenu(!showActionsMenu)}
+                                    className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg font-bold text-xs transition-all whitespace-nowrap cursor-pointer border border-blue-700 shadow-xs active:scale-95 shrink-0"
+                                    title="Exportar, imprimir y opciones de ficha"
+                                >
+                                    <Printer className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Acciones</span>
+                                    <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${showActionsMenu ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {showActionsMenu && (
+                                    <div className="absolute right-0 mt-1.5 w-64 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                                        <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                            Visualización e Impresión
+                                        </div>
+
+                                        <button
+                                            onClick={() => { setShowActionsMenu(false); handlePreviewCardPdf(); }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-semibold transition-colors text-left cursor-pointer"
+                                        >
+                                            <Eye className="w-4 h-4 text-indigo-500 shrink-0" />
+                                            <span>Previsualizar PDF</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => { setShowActionsMenu(false); handleDownloadPdf(); }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-semibold transition-colors text-left cursor-pointer"
+                                        >
+                                            <FileDown className="w-4 h-4 text-rose-500 shrink-0" />
+                                            <span>Descargar PDF</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => { setShowActionsMenu(false); handleDownloadPng(); }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-600 dark:hover:text-emerald-400 text-xs font-semibold transition-colors text-left cursor-pointer"
+                                        >
+                                            <FileDown className="w-4 h-4 text-emerald-500 shrink-0" />
+                                            <span>Descargar PNG</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => { setShowActionsMenu(false); window.print(); }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-semibold transition-colors text-left cursor-pointer"
+                                        >
+                                            <Printer className="w-4 h-4 text-blue-500 shrink-0" />
+                                            <span>Imprimir Ficha Directa</span>
+                                        </button>
+
+                                        <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+
+                                        <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                            Herramientas y Ajustes
+                                        </div>
+
+                                        <button
+                                            onClick={() => { setShowActionsMenu(false); setShowBulkModal(true); }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors text-left cursor-pointer"
+                                        >
+                                            <Users className="w-4 h-4 text-slate-600 dark:text-slate-400 shrink-0" />
+                                            <span>Impresión Masiva (2 en 1)</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => { setShowActionsMenu(false); setShowParamDrawer(true); }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-amber-50 dark:hover:bg-amber-950/50 hover:text-amber-600 dark:hover:text-amber-400 text-xs font-semibold transition-colors text-left cursor-pointer"
+                                        >
+                                            <SlidersHorizontal className="w-4 h-4 text-amber-500 shrink-0" />
+                                            <span>Parámetros de Diseño</span>
+                                        </button>
+                                    </div>
                                 )}
                             </div>
 
-                            {/* Divider line between control groups */}
-                            <div className="w-full h-px bg-slate-200 dark:bg-slate-700 my-0.5"></div>
-
-                            {/* Functional Group 2: Document & Export Actions */}
-                            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
-                                <button
-                                    onClick={handlePreviewCardPdf}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap no-print cursor-pointer border border-indigo-700 shadow-sm shadow-indigo-600/30 active:scale-95 text-center"
-                                    title="Previsualizar documento PDF"
+                            {/* Año de Servicio Selector Compacto */}
+                            <div className="flex items-center gap-1 shrink-0 ml-auto">
+                                <span className="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-tight">Año:</span>
+                                <select 
+                                    value={serviceYear} 
+                                    onChange={e => setServiceYear(parseInt(e.target.value, 10))}
+                                    className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg font-bold text-xs outline-none cursor-pointer shrink-0"
+                                    title="Año de servicio"
                                 >
-                                    <Eye className="w-4 h-4 shrink-0" strokeWidth={2.4} />
-                                    <span className="truncate">Previsualizar</span>
-                                </button>
-                                <button
-                                    onClick={handleDownloadPdf}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap no-print cursor-pointer border border-rose-700 shadow-sm shadow-rose-600/30 active:scale-95 text-center"
-                                >
-                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                    </svg>
-                                    <span className="truncate">Descargar PDF</span>
-                                </button>
-                                <button
-                                    onClick={handleDownloadPng}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap no-print cursor-pointer border border-emerald-700 shadow-sm shadow-emerald-600/30 active:scale-95 text-center"
-                                >
-                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                    </svg>
-                                    <span className="truncate">Descargar PNG</span>
-                                </button>
-                                <button 
-                                    onClick={() => {
-                                        window.print();
-                                    }}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap cursor-pointer border border-blue-700 shadow-sm shadow-blue-600/30 active:scale-95 text-center"
-                                >
-                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                                    <span className="truncate">Imprimir</span>
-                                </button>
-                                <button
-                                    onClick={() => setShowBulkModal(true)}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3.5 py-2.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 rounded-xl font-extrabold text-xs sm:text-sm transition-all whitespace-nowrap no-print cursor-pointer border border-slate-950 dark:border-white shadow-sm active:scale-95 text-center"
-                                >
-                                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.4">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                    </svg>
-                                    <span className="truncate">Masivo (2 en 1)</span>
-                                </button>
+                                    {Array.from({ length: 5 }, (_, i) => defaultServiceYear - 2 + i).map(y => (
+                                        <option key={y} value={y}>
+                                            {y}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
+                    ) : (
+                        <div className="flex items-center justify-between w-full">
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Seleccionar año:</span>
+                            <select 
+                                value={serviceYear} 
+                                onChange={e => setServiceYear(parseInt(e.target.value, 10))}
+                                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg font-bold text-xs outline-none cursor-pointer shrink-0"
+                            >
+                                {Array.from({ length: 5 }, (_, i) => defaultServiceYear - 2 + i).map(y => (
+                                    <option key={y} value={y}>Año {y}</option>
+                                ))}
+                            </select>
+                        </div>
                     )}
-                </div>
-
-                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
-
-                    {/* Service Year Selector */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '220px', flex: 1 }}>
-                        <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#475569', textTransform: 'uppercase', tracking: '0.05em' }}>Año de Servicio</label>
-                        <select 
-                            value={serviceYear} 
-                            onChange={e => setServiceYear(parseInt(e.target.value, 10))}
-                            style={{ 
-                                width: '100%', 
-                                padding: '11px 14px', 
-                                borderRadius: '8px', 
-                                border: '1.5px solid #cbd5e1', 
-                                backgroundColor: 'white', 
-                                fontWeight: '600', 
-                                color: '#1e293b', 
-                                fontSize: '0.95rem',
-                                outline: 'none', 
-                                cursor: 'pointer',
-                                transition: 'border-color 0.15s, box-shadow 0.15s',
-                                boxSizing: 'border-box'
-                            }}
-                        >
-                            {Array.from({ length: 5 }, (_, i) => defaultServiceYear - 2 + i).map(y => (
-                                <option key={y} value={y}>Año de Servicio {y}</option>
-                            ))}
-                        </select>
-                    </div>
                 </div>
             </div>
 
@@ -1441,9 +1479,9 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                                 </div>
 
                                 {/* Row 2: Fecha de nacimiento & Hombre / Mujer */}
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'flex-end', flex: 1, maxWidth: '58%' }}>
-                                        <span style={{ fontWeight: 'bold', minWidth: '155px', whiteSpace: 'nowrap' }}>Fecha de nacimiento:</span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px 16px', marginBottom: '6px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-end', flex: '1 1 230px', minWidth: '220px' }}>
+                                        <span style={{ fontWeight: 'bold', minWidth: '145px', whiteSpace: 'nowrap' }}>Fecha de nacimiento:</span>
                                         {isEditMode ? (
                                             <input 
                                                 type="text" 
@@ -1465,7 +1503,7 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                                             </span>
                                         )}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', minWidth: '220px', justifyContent: 'flex-start', paddingLeft: '24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexShrink: 0 }}>
                                         <label 
                                             onClick={() => handleDetailChange('genero', 'Hombre')}
                                             style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
@@ -1488,9 +1526,9 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                                 </div>
 
                                 {/* Row 3: Fecha de bautismo & Otras ovejas / Ungido */}
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'flex-end', flex: 1, maxWidth: '58%' }}>
-                                        <span style={{ fontWeight: 'bold', minWidth: '155px', whiteSpace: 'nowrap' }}>Fecha de bautismo:</span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px 16px', marginBottom: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-end', flex: '1 1 230px', minWidth: '220px' }}>
+                                        <span style={{ fontWeight: 'bold', minWidth: '145px', whiteSpace: 'nowrap' }}>Fecha de bautismo:</span>
                                         {isEditMode ? (
                                             <input 
                                                 type="text" 
@@ -1512,7 +1550,7 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                                             </span>
                                         )}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', minWidth: '220px', justifyContent: 'flex-start', paddingLeft: '24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexShrink: 0 }}>
                                         <label 
                                             onClick={() => handleDetailChange('esperanza', 'Otras ovejas')}
                                             style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
@@ -1535,7 +1573,7 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                                 </div>
 
                                 {/* Row 4: Privileges Row (Exact match to official S-21 PDF) */}
-                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: '6px', marginBottom: '8px', fontSize: '8.8pt' }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px 14px', marginTop: '6px', marginBottom: '8px', fontSize: '8.8pt' }}>
                                     <label 
                                         onClick={() => { if (pubDetails.genero !== 'Mujer') handleRoleToggle('Anciano'); }}
                                         style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: pubDetails.genero !== 'Mujer' ? 'pointer' : 'default', opacity: pubDetails.genero === 'Mujer' ? 0.4 : 1, userSelect: 'none' }}
@@ -1592,23 +1630,23 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                             <table className="publisher-table" style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #000', tableLayout: 'fixed' }}>
                                 <thead>
                                     <tr style={{ backgroundColor: '#ffffff', height: '42px' }}>
-                                        <th style={{ border: '1.5px solid #000', padding: '4px 6px', width: '16%', textAlign: 'left', fontWeight: 'bold', fontSize: '8.5pt', color: '#000' }}>
+                                        <th style={{ border: '1.5px solid #000', padding: '4px 6px', width: '14.5%', textAlign: 'left', fontWeight: 'bold', fontSize: '8.5pt', color: '#000' }}>
                                             Año de servicio
                                         </th>
-                                        <th style={{ border: '1.5px solid #000', padding: '4px 2px', width: '18%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000', lineHeight: 1.15 }}>
+                                        <th style={{ border: '1.5px solid #000', padding: '4px 2px', width: '14%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000', lineHeight: 1.15 }}>
                                             Participación<br />en el<br />ministerio
                                         </th>
-                                        <th style={{ border: '1.5px solid #000', padding: '4px 2px', width: '12%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000', lineHeight: 1.15 }}>
+                                        <th style={{ border: '1.5px solid #000', padding: '4px 2px', width: '9.5%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000', lineHeight: 1.15 }}>
                                             Cursos<br />bíblicos
                                         </th>
-                                        <th style={{ border: '1.5px solid #000', padding: '4px 2px', width: '13%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000', lineHeight: 1.15 }}>
+                                        <th style={{ border: '1.5px solid #000', padding: '4px 2px', width: '11.5%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000', lineHeight: 1.15 }}>
                                             Precursor<br />auxiliar
                                         </th>
-                                        <th style={{ border: '1.5px solid #000', padding: '4px 2px', width: '17%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000', lineHeight: 1.15 }}>
+                                        <th style={{ border: '1.5px solid #000', padding: '4px 2px', width: '16.5%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000', lineHeight: 1.15 }}>
                                             Horas<br />
                                             <span style={{ fontSize: '6.5pt', fontWeight: 'normal', display: 'block', lineHeight: 1.05 }}>(Si es precursor o<br />misionero que<br />sirve en el campo)</span>
                                         </th>
-                                        <th style={{ border: '1.5px solid #000', padding: '4px 6px', width: isEditMode ? '16%' : '24%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000' }}>
+                                        <th style={{ border: '1.5px solid #000', padding: '4px 6px', width: isEditMode ? '26%' : '34%', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt', color: '#000' }}>
                                             Notas
                                         </th>
                                         {isEditMode && (
@@ -1809,8 +1847,25 @@ const PublisherCards: React.FC<PublisherCardsProps> = ({ masterPublishers, globa
                     fileName={previewModalData.fileName}
                     pagesHtml={previewModalData.pages}
                     layoutLabel={previewModalData.layoutLabel}
+                    isS21={true}
+                    onRegeneratePages={handleRegeneratePreviewPages}
                 />
             )}
+
+            <S21ConfigDrawer
+                isOpen={showParamDrawer}
+                onClose={() => setShowParamDrawer(false)}
+                config={s21Config}
+                isTwoInOne={true}
+                onChangeConfig={(newCfg) => {
+                    setS21Config(newCfg);
+                    saveS21Config(newCfg, true);
+                }}
+                onResetDefaults={() => {
+                    const defaults = resetS21Config(true);
+                    setS21Config(defaults);
+                }}
+            />
         </div>
     );
 };
